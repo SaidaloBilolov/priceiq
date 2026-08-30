@@ -16,53 +16,53 @@
     "home": "Главная",
     "search": "Поиск",
     "favorites": "Избранное",
-    "alerts": "Уведомления",
+    "alerts": "Оповещения",
     "profile": "Профиль"
   },
   "home": {
-    "title": "Мониторинг Цен на Смартфоны",
-    "subtitle": "Сравнивайте самые низкие цены в Olcha, Texnomart, Asaxiy и Uzum",
-    "searchPlaceholder": "Введите модель смартфона (например: iPhone 16 Pro Max)...",
+    "title": "Мониторинг цен на все товары",
+    "subtitle": "Сравнивайте выгодные цены в Uzum Market, Olcha, Texnomart, Asaxiy и других магазинах",
+    "searchPlaceholder": "Введите название товара или бренд (например: iPhone 16, Телевизор, Пылесос)...",
     "categories": "Категории",
-    "bestDeals": "Лучшие Предложения Сегодня",
+    "bestDeals": "Лучшие предложения сегодня",
     "viewDetails": "Подробнее",
     "storesCompared": "магазинов сравнено"
   },
   "product": {
-    "lowestPrice": "Самая Низкая Цена",
-    "averagePrice": "Средняя Цена на Рынке",
-    "highestPrice": "Самая Высокая Цена",
-    "dealScore": "Оценка Выгоды",
-    "compareStores": "Цены в Магазинах",
-    "priceHistory": "История Цен (7D, 1M, 3M)",
-    "addFavorite": "Добавить в избранное",
+    "lowestPrice": "Лучшая цена",
+    "averagePrice": "Средняя цена",
+    "highestPrice": "Макс. цена",
+    "dealScore": "Оценка выгоды",
+    "compareStores": "Цены в магазинах",
+    "priceHistory": "История цен (7дн, 1мес, 3мес)",
+    "addFavorite": "В избранное",
     "removeFavorite": "Удалить из избранного",
-    "setAlert": "Установить алерт",
+    "setAlert": "Уведомить о скидке",
     "goToStore": "Перейти в магазин",
-    "lowestBadge": "#1 Самый Дешевый",
+    "lowestBadge": "#1 Лучшая цена",
     "inStock": "В наличии",
     "outOfStock": "Нет в наличии"
   },
   "profile": {
-    "title": "Профиль Пользователя",
+    "title": "Профиль пользователя",
     "telegramInfo": "Данные Telegram",
-    "phoneNumber": "Ваш Номер Телефона",
+    "phoneNumber": "Номер телефона",
     "phonePlaceholder": "+998 90 123 45 67",
     "savePhone": "Сохранить номер",
     "language": "Выберите язык",
     "phoneSaved": "Номер телефона успешно сохранен!"
   },
   "alerts": {
-    "title": "Уведомления о Снижении Цен",
-    "subtitle": "Отслеживаемые смартфоны и целевые цены",
-    "targetPrice": "Целевая Цена",
-    "currentLowest": "Текущая Минимальная Цена",
-    "setAlert": "Установить уведомление",
+    "title": "Уведомления о снижении цен",
+    "subtitle": "Отслеживаемые товары и целевые цены",
+    "targetPrice": "Желаемая цена",
+    "currentLowest": "Текущая лучшая цена",
+    "setAlert": "Создать алерт",
     "enterTargetPrice": "Введите целевую цену в сумах",
-    "noAlerts": "У вас пока нет уведомлений о цене"
+    "noAlerts": "У вас пока нет активных алертов"
   },
   "favorites": {
-    "title": "Избранное",
+    "title": "Избранные товары",
     "noFavorites": "Список избранного пуст"
   }
 }

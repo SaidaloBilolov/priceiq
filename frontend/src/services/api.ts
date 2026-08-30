@@ -15,12 +15,18 @@ export const getApiBaseUrl = (): string => {
 const API_BASE_URL = getApiBaseUrl();
 
 const DEFAULT_CATEGORIES: Category[] = [
-  { id: 1, nameUz: 'Smartfonlar', nameRu: 'Смартфоны', nameEn: 'Smartphones' },
-  { id: 2, nameUz: 'Noutbuklar', nameRu: 'Ноутбуки', nameEn: 'Laptops' },
-  { id: 3, nameUz: 'Maishiy Texnika', nameRu: 'Бытовая техника', nameEn: 'Appliances' },
-  { id: 4, nameUz: 'Kiyim-kechak', nameRu: 'Одежда', nameEn: 'Clothing' },
-  { id: 5, nameUz: 'Aksessuarlar', nameRu: 'Аксессуары', nameEn: 'Accessories' },
-  { id: 6, nameUz: 'Boshqa', nameRu: 'Другое', nameEn: 'Other' }
+  { id: 1, nameUz: 'Smartfonlar va Gadjetlar', nameRu: 'Смартфоны и гаджеты', nameEn: 'Smartphones & Gadgets' },
+  { id: 2, nameUz: 'Noutbuklar va Kompyuterlar', nameRu: 'Ноутбуки и ПК', nameEn: 'Laptops & Computers' },
+  { id: 3, nameUz: 'Televizor va Audio', nameRu: 'ТВ и Аудио', nameEn: 'TV & Audio' },
+  { id: 4, nameUz: 'Maishiy Texnika', nameRu: 'Бытовая техника', nameEn: 'Appliances' },
+  { id: 5, nameUz: 'Kiyim va Poyabzal', nameRu: 'Одежда и обувь', nameEn: 'Clothing & Shoes' },
+  { id: 6, nameUz: "Go'zallik va Parvarish", nameRu: 'Красота и уход', nameEn: 'Beauty & Care' },
+  { id: 7, nameUz: 'Uy va Oshxona', nameRu: 'Дом и кухня', nameEn: 'Home & Kitchen' },
+  { id: 8, nameUz: 'Avtotovarlar', nameRu: 'Автотовары', nameEn: 'Auto goods' },
+  { id: 9, nameUz: 'Sport va Salomatlik', nameRu: 'Спорт и здоровье', nameEn: 'Sport & Health' },
+  { id: 10, nameUz: 'Bolalar Mahsulotlari', nameRu: 'Детские товары', nameEn: 'Kids & Baby' },
+  { id: 11, nameUz: 'Kitoblar va Kanselyariya', nameRu: 'Книги и канцелярия', nameEn: 'Books & Stationery' },
+  { id: 12, nameUz: 'Boshqa Mahsulotlar', nameRu: 'Другие товары', nameEn: 'Other Products' }
 ];
 
 const DEFAULT_PRODUCTS: Product[] = [

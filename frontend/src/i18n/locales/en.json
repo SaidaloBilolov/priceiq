@@ -20,23 +20,23 @@
     "profile": "Profile"
   },
   "home": {
-    "title": "Smartphone Price Monitoring",
-    "subtitle": "Compare lowest prices across Olcha, Texnomart, Asaxiy, and Uzum",
-    "searchPlaceholder": "Enter smartphone model (e.g. iPhone 16 Pro Max)...",
+    "title": "All Products Price Comparison & Monitoring",
+    "subtitle": "Compare best deals across Uzum Market, Olcha, Texnomart, Asaxiy and top retailers",
+    "searchPlaceholder": "Search any product, brand or model (e.g. iPhone 16, TV, Vacuum cleaner)...",
     "categories": "Categories",
-    "bestDeals": "Best Deals Today",
+    "bestDeals": "Top Deals Today",
     "viewDetails": "View Details",
     "storesCompared": "stores compared"
   },
   "product": {
     "lowestPrice": "Lowest Price",
-    "averagePrice": "Market Avg Price",
+    "averagePrice": "Market Average",
     "highestPrice": "Highest Price",
     "dealScore": "Deal Score",
     "compareStores": "Store Prices",
     "priceHistory": "Price History (7D, 1M, 3M)",
     "addFavorite": "Add to Favorites",
-    "removeFavorite": "Remove Favorite",
+    "removeFavorite": "Remove from Favorites",
     "setAlert": "Set Price Alert",
     "goToStore": "Go to Store",
     "lowestBadge": "#1 Lowest Price",
@@ -45,24 +45,24 @@
   },
   "profile": {
     "title": "User Profile",
-    "telegramInfo": "Telegram Information",
-    "phoneNumber": "Your Phone Number",
+    "telegramInfo": "Telegram Info",
+    "phoneNumber": "Phone Number",
     "phonePlaceholder": "+998 90 123 45 67",
-    "savePhone": "Save Phone Number",
+    "savePhone": "Save Phone",
     "language": "Select Language",
     "phoneSaved": "Phone number saved successfully!"
   },
   "alerts": {
     "title": "Price Drop Alerts",
-    "subtitle": "Tracked smartphones and target prices",
+    "subtitle": "Tracked products and target prices",
     "targetPrice": "Target Price",
-    "currentLowest": "Current Lowest Price",
+    "currentLowest": "Current Lowest",
     "setAlert": "Set Alert",
     "enterTargetPrice": "Enter target price in UZS",
-    "noAlerts": "No price alerts set yet"
+    "noAlerts": "No active price alerts yet"
   },
   "favorites": {
     "title": "Favorites",
-    "noFavorites": "Favorites list is empty"
+    "noFavorites": "Your favorites list is empty"
   }
 }

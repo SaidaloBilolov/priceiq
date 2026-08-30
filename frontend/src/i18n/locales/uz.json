@@ -20,10 +20,10 @@
     "profile": "Profil"
   },
   "home": {
-    "title": "Smartfonlar Narxlari Monitoringi",
-    "subtitle": "Olcha, Texnomart, Asaxiy va Uzum do'konlaridagi eng arzon narxlarni solishtiring",
-    "searchPlaceholder": "Smartfon modelini kiriting (masalan: iPhone 16 Pro Max)...",
-    "categories": "Kategoriyalar",
+    "title": "Barcha Mahsulotlar Narxlari Monitoringi",
+    "subtitle": "Uzum Market, Olcha, Texnomart, Asaxiy va barcha do'konlardagi eng arzon narxlarni solishtiring",
+    "searchPlaceholder": "Mahsulot yoki brend nomini kiriting (masalan: iPhone 16, Televizor, Changyutgich)...",
+    "categories": "Bozor Kategoriyalari",
     "bestDeals": "Bugungi Eng Yaxshi Takliflar",
     "viewDetails": "Batafsil ko'rish",
     "storesCompared": "do'kon solishtirildi"
@@ -54,7 +54,7 @@
   },
   "alerts": {
     "title": "Narx Tushishi Xabarnomalari",
-    "subtitle": "Kuzatilayotgan smartfonlar va maqsad qilingan narxlar",
+    "subtitle": "Kuzatilayotgan mahsulotlar va maqsad qilingan narxlar",
     "targetPrice": "Maqsadli Narx",
     "currentLowest": "Joriy Eng Arzon Narx",
     "setAlert": "Alert o'rnatish",

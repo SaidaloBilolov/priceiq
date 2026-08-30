@@ -28,12 +28,18 @@ export const setCustomApiBaseUrl = (url: string): void => {
 };
 
 const DEFAULT_CATEGORIES: Category[] = [
-  { id: 1, nameUz: 'Smartfonlar' },
-  { id: 2, nameUz: 'Noutbuklar' },
-  { id: 3, nameUz: 'Maishiy Texnika' },
-  { id: 4, nameUz: 'Kiyim-kechak' },
-  { id: 5, nameUz: 'Aksessuarlar' },
-  { id: 6, nameUz: 'Boshqa' }
+  { id: 1, nameUz: 'Smartfonlar va Gadjetlar' },
+  { id: 2, nameUz: 'Noutbuklar va Kompyuterlar' },
+  { id: 3, nameUz: 'Televizor va Audio' },
+  { id: 4, nameUz: 'Maishiy Texnika' },
+  { id: 5, nameUz: 'Kiyim va Poyabzal' },
+  { id: 6, nameUz: "Go'zallik va Parvarish" },
+  { id: 7, nameUz: 'Uy va Oshxona' },
+  { id: 8, nameUz: 'Avtotovarlar' },
+  { id: 9, nameUz: 'Sport va Salomatlik' },
+  { id: 10, nameUz: 'Bolalar Mahsulotlari' },
+  { id: 11, nameUz: 'Kitoblar va Kanselyariya' },
+  { id: 12, nameUz: 'Boshqa Mahsulotlar' }
 ];
 
 const DEFAULT_PRODUCTS: Product[] = [
