@@ -148,6 +148,21 @@ public class SellerBotService extends TelegramLongPollingBot {
             return;
         }
 
+        // 3.1. Handle Operator Reply when in AWAITING_OPERATOR_REPLY state
+        if (session.getState() == SellerState.AWAITING_OPERATOR_REPLY) {
+            if (message.hasText() && isCancelOrMenu(message.getText())) {
+                session.setState(SellerState.MAIN_MENU);
+                session.setTempReplyToChatId(null);
+                SendMessage cancelMsg = new SendMessage();
+                cancelMsg.setChatId(chatId.toString());
+                cancelMsg.setText("❌ Javob yozish bekor qilindi.");
+                send(cancelMsg);
+                return;
+            }
+            sendOperatorReplyToUser(message, session, tgUser, lang);
+            return;
+        }
+
         // 4. Handle Text Commands & Navigation
         if (message.hasText()) {
             String text = message.getText().trim();
@@ -637,45 +652,60 @@ public class SellerBotService extends TelegramLongPollingBot {
             } catch (Exception ignored) {}
         }
 
+        InlineKeyboardMarkup replyMarkup = new InlineKeyboardMarkup();
+        List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+        List<InlineKeyboardButton> r = new ArrayList<>();
+        InlineKeyboardButton replyBtn = new InlineKeyboardButton();
+        replyBtn.setText("💬 Javob Yozish / Ответить");
+        replyBtn.setCallbackData("reply_ticket_" + userChatId);
+        r.add(replyBtn);
+        rows.add(r);
+        replyMarkup.setKeyboard(rows);
+
         for (Long opChatId : targetOperatorChatIds) {
             try {
                 if (message.hasText()) {
                     SendMessage fwd = new SendMessage();
                     fwd.setChatId(opChatId.toString());
                     fwd.setParseMode(null);
-                    fwd.setText(header + "💬 Xabar: " + message.getText() + "\n\n(Javob berish uchun ushbu xabarga 'Reply' qiling)");
+                    fwd.setText(header + "💬 Xabar: " + message.getText());
+                    fwd.setReplyMarkup(replyMarkup);
                     Message sent = execute(fwd);
                     operatorMsgToUserChatMap.put(sent.getMessageId(), userChatId);
                 } else if (message.hasPhoto()) {
                     SendPhoto fwd = new SendPhoto();
                     fwd.setChatId(opChatId.toString());
                     fwd.setPhoto(new InputFile(message.getPhoto().get(message.getPhoto().size() - 1).getFileId()));
-                    fwd.setCaption(header + "📷 Rasm: " + (message.getCaption() != null ? message.getCaption() : "") + "\n\n(Javob berish uchun ushbu xabarga 'Reply' qiling)");
+                    fwd.setCaption(header + "📷 Rasm: " + (message.getCaption() != null ? message.getCaption() : ""));
                     fwd.setParseMode(null);
+                    fwd.setReplyMarkup(replyMarkup);
                     Message sent = execute(fwd);
                     operatorMsgToUserChatMap.put(sent.getMessageId(), userChatId);
                 } else if (message.hasVideo()) {
                     SendVideo fwd = new SendVideo();
                     fwd.setChatId(opChatId.toString());
                     fwd.setVideo(new InputFile(message.getVideo().getFileId()));
-                    fwd.setCaption(header + "🎥 Video: " + (message.getCaption() != null ? message.getCaption() : "") + "\n\n(Javob berish uchun ushbu xabarga 'Reply' qiling)");
+                    fwd.setCaption(header + "🎥 Video: " + (message.getCaption() != null ? message.getCaption() : ""));
                     fwd.setParseMode(null);
+                    fwd.setReplyMarkup(replyMarkup);
                     Message sent = execute(fwd);
                     operatorMsgToUserChatMap.put(sent.getMessageId(), userChatId);
                 } else if (message.hasVoice()) {
                     SendVoice fwd = new SendVoice();
                     fwd.setChatId(opChatId.toString());
                     fwd.setVoice(new InputFile(message.getVoice().getFileId()));
-                    fwd.setCaption(header + "🎤 Ovozli xabar\n\n(Javob berish uchun ushbu xabarga 'Reply' qiling)");
+                    fwd.setCaption(header + "🎤 Ovozli xabar");
                     fwd.setParseMode(null);
+                    fwd.setReplyMarkup(replyMarkup);
                     Message sent = execute(fwd);
                     operatorMsgToUserChatMap.put(sent.getMessageId(), userChatId);
                 } else if (message.hasDocument()) {
                     SendDocument fwd = new SendDocument();
                     fwd.setChatId(opChatId.toString());
                     fwd.setDocument(new InputFile(message.getDocument().getFileId()));
-                    fwd.setCaption(header + "📄 Hujjat: " + (message.getCaption() != null ? message.getCaption() : "") + "\n\n(Javob berish uchun ushbu xabarga 'Reply' qiling)");
+                    fwd.setCaption(header + "📄 Hujjat: " + (message.getCaption() != null ? message.getCaption() : ""));
                     fwd.setParseMode(null);
+                    fwd.setReplyMarkup(replyMarkup);
                     Message sent = execute(fwd);
                     operatorMsgToUserChatMap.put(sent.getMessageId(), userChatId);
                 }
@@ -712,7 +742,7 @@ public class SellerBotService extends TelegramLongPollingBot {
         if (targetUserChatId == null) {
             SendMessage err = new SendMessage();
             err.setChatId(message.getChatId().toString());
-            err.setText("⚠️ Ushbu xabardan murojaatchining Chat ID si topilmadi. Iltimos, xabarga to'g'ridan-to'g'ri Reply qiling.");
+            err.setText("⚠️ Ushbu xabardan murojaatchining Chat ID si topilmadi. Iltimos, xabardagi '💬 Javob Yozish' tugmasini bosing yoki xabarga to'g'ridan-to'g'ri Reply qiling.");
             send(err);
             return;
         }
@@ -751,6 +781,72 @@ public class SellerBotService extends TelegramLongPollingBot {
             err.setText("❌ Foydalanuvchiga javob yuborishda xatolik: " + e.getMessage());
             send(err);
         }
+    }
+
+    private void sendOperatorReplyToUser(Message message, SellerSession session, org.telegram.telegrambots.meta.api.objects.User tgUser, String lang) {
+        Long targetUserChatId = session.getTempReplyToChatId();
+        if (targetUserChatId == null) {
+            session.setState(SellerState.MAIN_MENU);
+            return;
+        }
+
+        Optional<SupportOperator> opOpt = supportOperatorRepository.findByTelegramChatId(message.getChatId());
+        String operatorName = opOpt.isPresent() ? opOpt.get().getFullName() : (tgUser != null && tgUser.getFirstName() != null ? tgUser.getFirstName() : "Support Operator");
+
+        String replyText = message.hasText() ? message.getText() : (message.getCaption() != null ? message.getCaption() : "[Media javob]");
+
+        // Update Ticket in database
+        try {
+            supportTicketRepository.findTopByUserChatIdAndStatusOrderByCreatedAtDesc(targetUserChatId, "PENDING")
+                    .ifPresent(t -> {
+                        t.setStatus("ANSWERED");
+                        t.setOperatorName(operatorName);
+                        t.setOperatorChatId(message.getChatId());
+                        t.setReplyText(replyText);
+                        t.setRepliedAt(LocalDateTime.now());
+                        supportTicketRepository.save(t);
+                    });
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        // Deliver to user
+        try {
+            if (message.hasText()) {
+                SendMessage toUser = new SendMessage();
+                toUser.setChatId(targetUserChatId.toString());
+                toUser.setParseMode(null);
+                toUser.setText("👨‍💻 Qo'llab-quvvatlash xizmati javobi (" + operatorName + "):\n\n" + message.getText());
+                execute(toUser);
+            } else if (message.hasPhoto()) {
+                SendPhoto toUser = new SendPhoto();
+                toUser.setChatId(targetUserChatId.toString());
+                toUser.setPhoto(new InputFile(message.getPhoto().get(message.getPhoto().size() - 1).getFileId()));
+                toUser.setCaption("👨‍💻 Qo'llab-quvvatlash xizmati javobi (" + operatorName + "):\n\n" + (message.getCaption() != null ? message.getCaption() : ""));
+                toUser.setParseMode(null);
+                execute(toUser);
+            } else if (message.hasVoice()) {
+                SendVoice toUser = new SendVoice();
+                toUser.setChatId(targetUserChatId.toString());
+                toUser.setVoice(new InputFile(message.getVoice().getFileId()));
+                toUser.setCaption("👨‍💻 Qo'llab-quvvatlash xizmati javobi (" + operatorName + ")");
+                toUser.setParseMode(null);
+                execute(toUser);
+            }
+
+            SendMessage ack = new SendMessage();
+            ack.setChatId(message.getChatId().toString());
+            ack.setText("✅ Javobingiz foydalanuvchiga (Chat ID: " + targetUserChatId + ") muvaffaqiyatli yetkazildi!");
+            send(ack);
+        } catch (Exception e) {
+            SendMessage err = new SendMessage();
+            err.setChatId(message.getChatId().toString());
+            err.setText("❌ Foydalanuvchiga javob yuborishda xatolik: " + e.getMessage());
+            send(err);
+        }
+
+        session.setState(SellerState.MAIN_MENU);
+        session.setTempReplyToChatId(null);
     }
 
     private Long extractTargetChatId(Message repliedTo) {
@@ -1203,6 +1299,16 @@ public class SellerBotService extends TelegramLongPollingBot {
         } else if ("settings_reset_phone".equals(data)) {
             String currentLang = getUserLanguage(chatId, tgUser);
             handleResetPhone(chatId, session, tgUser, currentLang);
+        } else if (data.startsWith("reply_ticket_")) {
+            Long targetChatId = Long.parseLong(data.replace("reply_ticket_", ""));
+            session.setState(SellerState.AWAITING_OPERATOR_REPLY);
+            session.setTempReplyToChatId(targetChatId);
+
+            SendMessage prompt = new SendMessage();
+            prompt.setChatId(chatId.toString());
+            prompt.setParseMode(null);
+            prompt.setText("✍️ Foydalanuvchiga (Chat ID: " + targetChatId + ") javob xabaringizni yozib yuboring (matn, rasm yoki ovozli xabar):\n\n(Bekor qilish uchun /cancel yoki 'Bekor qilish' deb yozing)");
+            send(prompt);
         } else if ("settings_back".equals(data)) {
             String currentLang = getUserLanguage(chatId, tgUser);
             Optional<SupportOperator> op = findActiveOperatorForUser(chatId, session.getPhoneNumber());

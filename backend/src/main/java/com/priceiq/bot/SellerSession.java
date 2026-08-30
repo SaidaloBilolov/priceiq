@@ -19,6 +19,10 @@ public class SellerSession {
     // Temporary data for Price Update Flow
     private Long tempSelectedProductId;
 
+    // Temporary data for Operator Reply Flow
+    private Long tempReplyToChatId;
+    private String tempReplyToUserName;
+
     public SellerSession() {}
 
     public SellerSession(Long chatId, Long telegramUserId) {
@@ -67,4 +71,10 @@ public class SellerSession {
 
     public Long getTempSelectedProductId() { return tempSelectedProductId; }
     public void setTempSelectedProductId(Long tempSelectedProductId) { this.tempSelectedProductId = tempSelectedProductId; }
+
+    public Long getTempReplyToChatId() { return tempReplyToChatId; }
+    public void setTempReplyToChatId(Long tempReplyToChatId) { this.tempReplyToChatId = tempReplyToChatId; }
+
+    public String getTempReplyToUserName() { return tempReplyToUserName; }
+    public void setTempReplyToUserName(String tempReplyToUserName) { this.tempReplyToUserName = tempReplyToUserName; }
 }
