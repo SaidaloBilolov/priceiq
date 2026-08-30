@@ -131,6 +131,16 @@ public class SellerBotService extends TelegramLongPollingBot {
             }
         }
 
+        // 1.1. Check if a User is replying directly to a support response message
+        if (message.getReplyToMessage() != null) {
+            String repliedText = message.getReplyToMessage().getText();
+            if (repliedText != null && (repliedText.contains("Qo'llab-quvvatlash") || repliedText.contains("поддержк") || repliedText.contains("Support") || repliedText.contains("PriceIQ"))) {
+                session.setState(SellerState.AWAITING_SUPPORT_MESSAGE);
+                forwardSupportMessageToOperators(message, tgUser, session, lang);
+                return;
+            }
+        }
+
         // 2. Handle Contact sharing
         if (message.hasContact()) {
             handleContactReceived(chatId, message.getContact(), session, tgUser, lang);
@@ -787,6 +797,11 @@ public class SellerBotService extends TelegramLongPollingBot {
             ack.setChatId(message.getChatId().toString());
             ack.setText("✅ Javobingiz foydalanuvchiga (Chat ID: " + targetUserChatId + ") yetkazildi! Yana xabar yozishingiz mumkin.");
             send(ack);
+
+            // CRITICAL: Set the user's session into AWAITING_SUPPORT_MESSAGE so their follow-up is routed back!
+            final Long finalUserChatId = targetUserChatId;
+            SellerSession userSession = sessions.computeIfAbsent(finalUserChatId, id -> new SellerSession(id, id));
+            userSession.setState(SellerState.AWAITING_SUPPORT_MESSAGE);
         } catch (Exception e) {
             SendMessage err = new SendMessage();
             err.setChatId(message.getChatId().toString());
@@ -850,6 +865,11 @@ public class SellerBotService extends TelegramLongPollingBot {
             ack.setChatId(message.getChatId().toString());
             ack.setText("✅ Javobingiz foydalanuvchiga (Chat ID: " + targetUserChatId + ") yetkazildi! Suhbatni davom ettirishingiz mumkin.");
             send(ack);
+
+            // CRITICAL: Set the user's session into AWAITING_SUPPORT_MESSAGE so their follow-up is routed back!
+            final Long finalUserChatId = targetUserChatId;
+            SellerSession userSession = sessions.computeIfAbsent(finalUserChatId, id -> new SellerSession(id, id));
+            userSession.setState(SellerState.AWAITING_SUPPORT_MESSAGE);
         } catch (Exception e) {
             SendMessage err = new SendMessage();
             err.setChatId(message.getChatId().toString());
