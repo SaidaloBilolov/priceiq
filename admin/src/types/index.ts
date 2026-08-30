@@ -77,3 +77,20 @@ export interface SupportOperator {
   isActive: boolean;
   createdAt?: string;
 }
+
+export interface SupportTicket {
+  id: number;
+  userChatId: number;
+  userName?: string;
+  userPhone?: string;
+  userRole?: string;
+  messageText?: string;
+  mediaType?: string;
+  mediaFileId?: string;
+  operatorName?: string;
+  operatorChatId?: number;
+  replyText?: string;
+  status: 'PENDING' | 'ANSWERED';
+  createdAt?: string;
+  repliedAt?: string;
+}

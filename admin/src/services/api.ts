@@ -1,4 +1,4 @@
-import { Product, Category, PriceAlert, Store, SupportOperator } from '../types';
+import { Product, Category, PriceAlert, Store, SupportOperator, SupportTicket } from '../types';
 
 export const getApiBaseUrl = (): string => {
   const customUrl = localStorage.getItem('priceiq_custom_api_url');
@@ -262,6 +262,33 @@ export const api = {
     try {
       await fetch(`${baseUrl}/admin/support-operators/${id}`, { method: 'DELETE' });
     } catch (err) {}
+  },
+
+  // Support Tickets & Message History
+  async getSupportTickets(status?: string): Promise<SupportTicket[]> {
+    const baseUrl = getApiBaseUrl();
+    try {
+      const url = status ? `${baseUrl}/admin/support-tickets?status=${status}` : `${baseUrl}/admin/support-tickets`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) return data;
+      }
+    } catch (err) {}
+    return [];
+  },
+
+  async replySupportTicket(id: number, replyText: string, operatorName: string = 'Super Admin'): Promise<SupportTicket | null> {
+    const baseUrl = getApiBaseUrl();
+    try {
+      const res = await fetch(`${baseUrl}/admin/support-tickets/${id}/reply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ replyText, operatorName })
+      });
+      if (res.ok) return res.json();
+    } catch (err) {}
+    return null;
   },
 
   // Products
