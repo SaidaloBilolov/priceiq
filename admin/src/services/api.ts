@@ -272,6 +272,18 @@ export const api = {
   },
 
   async updateProduct(id: number, productData: Partial<Product>): Promise<Product> {
+    const baseUrl = getApiBaseUrl();
+    try {
+      const res = await fetch(`${baseUrl}/products/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(productData)
+      });
+      if (res.ok) {
+        return res.json();
+      }
+    } catch (e) {}
+
     const existing = getLocalProducts();
     let updatedProduct: Product = { ...existing[0], ...productData, id };
     const updatedList = existing.map(p => {
@@ -282,27 +294,19 @@ export const api = {
       return p;
     });
     saveLocalProducts(updatedList);
-
-    const baseUrl = getApiBaseUrl();
-    try {
-      fetch(`${baseUrl}/products/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(productData)
-      }).catch(() => {});
-    } catch (e) {}
-
     return updatedProduct;
   },
 
   async deleteProduct(id: number): Promise<void> {
-    const existing = getLocalProducts();
-    saveLocalProducts(existing.filter(p => p.id !== id));
-
     const baseUrl = getApiBaseUrl();
     try {
-      fetch(`${baseUrl}/products/${id}`, { method: 'DELETE' }).catch(() => {});
-    } catch (e) {}
+      await fetch(`${baseUrl}/products/${id}`, { method: 'DELETE' });
+    } catch (e) {
+      console.warn('Backend DELETE error:', e);
+    }
+
+    const existing = getLocalProducts();
+    saveLocalProducts(existing.filter(p => p.id !== id));
   },
 
   // Price Alerts

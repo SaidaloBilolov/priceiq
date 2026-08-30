@@ -19,17 +19,23 @@ public class ProductService {
     private final PriceHistoryRepository priceHistoryRepository;
     private final CategoryRepository categoryRepository;
     private final StoreRepository storeRepository;
+    private final FavoriteRepository favoriteRepository;
+    private final PriceAlertRepository priceAlertRepository;
 
     public ProductService(ProductRepository productRepository,
                           ProductOfferRepository offerRepository,
                           PriceHistoryRepository priceHistoryRepository,
                           CategoryRepository categoryRepository,
-                          StoreRepository storeRepository) {
+                          StoreRepository storeRepository,
+                          FavoriteRepository favoriteRepository,
+                          PriceAlertRepository priceAlertRepository) {
         this.productRepository = productRepository;
         this.offerRepository = offerRepository;
         this.priceHistoryRepository = priceHistoryRepository;
         this.categoryRepository = categoryRepository;
         this.storeRepository = storeRepository;
+        this.favoriteRepository = favoriteRepository;
+        this.priceAlertRepository = priceAlertRepository;
     }
 
     @Transactional(readOnly = true)
@@ -168,7 +174,15 @@ public class ProductService {
 
     @Transactional
     public void deleteProduct(Long id) {
-        productRepository.deleteById(id);
+        try {
+            favoriteRepository.deleteByProductId(id);
+            priceAlertRepository.deleteByProductId(id);
+            priceHistoryRepository.deleteByProductId(id);
+            offerRepository.deleteByProductId(id);
+            productRepository.deleteById(id);
+        } catch (Exception e) {
+            productRepository.deleteById(id);
+        }
     }
 
     public ProductDto mapToDto(Product product) {

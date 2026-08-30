@@ -10,4 +10,5 @@ import java.util.List;
 public interface PriceAlertRepository extends JpaRepository<PriceAlert, Long> {
     List<PriceAlert> findByUserId(Long userId);
     List<PriceAlert> findByProductIdAndIsActiveTrue(Long productId);
+    void deleteByProductId(Long productId);
 }

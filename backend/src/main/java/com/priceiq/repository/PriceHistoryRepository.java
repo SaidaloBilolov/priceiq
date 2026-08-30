@@ -9,4 +9,5 @@ import java.util.List;
 @Repository
 public interface PriceHistoryRepository extends JpaRepository<PriceHistory, Long> {
     List<PriceHistory> findByProductIdOrderByRecordedAtAsc(Long productId);
+    void deleteByProductId(Long productId);
 }
