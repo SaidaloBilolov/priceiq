@@ -23,6 +23,10 @@ telegram:
     username: ${TELEGRAM_BOT_USERNAME:princeiquz_bot}
     token: ${TELEGRAM_BOT_TOKEN:8603794898:AAEPq2YEv7OFBEoSkzYkrhiPe3JCPqcfDko}
     webapp-url: ${TELEGRAM_WEBAPP_URL:https://frontend-three-gamma-ca7l713sls.vercel.app}
+  support-bot:
+    username: ${TELEGRAM_SUPPORT_BOT_USERNAME:WearFlow_Support_Bot}
+    token: ${TELEGRAM_SUPPORT_BOT_TOKEN:${telegram.bot.token}}
+    admin-chat-id: ${ADMIN_TELEGRAM_CHAT_ID:99887766}
 
 springdoc:
   api-docs:
