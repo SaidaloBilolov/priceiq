@@ -8,7 +8,6 @@ import { SearchPage } from './pages/Search';
 import { FavoritesPage } from './pages/Favorites';
 import { AlertsPage } from './pages/Alerts';
 import { ProfilePage } from './pages/Profile';
-import { AdminPage } from './pages/Admin';
 import { initTelegramApp } from './utils/telegram';
 import './i18n';
 
@@ -29,7 +28,6 @@ export function App() {
             <Route path="/favorites" element={<FavoritesPage />} />
             <Route path="/alerts" element={<AlertsPage />} />
             <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/admin" element={<AdminPage />} />
           </Routes>
         </main>
         <MobileNav />

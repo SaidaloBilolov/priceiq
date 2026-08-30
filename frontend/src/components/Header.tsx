@@ -1,7 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { ShieldCheck } from 'lucide-react';
 import { getTelegramUser } from '../utils/telegram';
 import { Language } from '../types';
 
@@ -32,18 +31,8 @@ export const Header: React.FC = () => {
           </div>
         </Link>
 
-        {/* Right Section: Admin, Language, Profile */}
+        {/* Right Section: Language Switcher, Profile */}
         <div className="flex items-center gap-2">
-          {/* Admin Dashboard Link */}
-          <Link
-            to="/admin"
-            className="p-1.5 bg-gray-100 dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-blue-950 text-gray-700 dark:text-gray-300 hover:text-blue-600 rounded-xl transition-all flex items-center gap-1 text-[11px] font-extrabold border border-gray-200/60 dark:border-gray-700"
-            title="Admin Panel"
-          >
-            <ShieldCheck className="w-4 h-4 text-blue-600" />
-            <span className="hidden sm:inline">Admin</span>
-          </Link>
-
           {/* 3-Language Switcher (UZ, RU, EN) */}
           <div className="inline-flex items-center bg-gray-100 dark:bg-gray-800 p-1 rounded-xl border border-gray-200/60 dark:border-gray-700">
             <button
