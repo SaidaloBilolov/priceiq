@@ -1,0 +1,68 @@
+{
+  "common": {
+    "appName": "PRICEIQ",
+    "search": "Search",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "success": "Success",
+    "all": "All",
+    "currency": "UZS",
+    "back": "Back"
+  },
+  "navigation": {
+    "home": "Home",
+    "search": "Search",
+    "favorites": "Favorites",
+    "alerts": "Price Alerts",
+    "profile": "Profile"
+  },
+  "home": {
+    "title": "Smartphone Price Monitoring",
+    "subtitle": "Compare lowest prices across Olcha, Texnomart, Asaxiy, and Uzum",
+    "searchPlaceholder": "Enter smartphone model (e.g. iPhone 16 Pro Max)...",
+    "categories": "Categories",
+    "bestDeals": "Best Deals Today",
+    "viewDetails": "View Details",
+    "storesCompared": "stores compared"
+  },
+  "product": {
+    "lowestPrice": "Lowest Price",
+    "averagePrice": "Market Avg Price",
+    "highestPrice": "Highest Price",
+    "dealScore": "Deal Score",
+    "compareStores": "Store Prices",
+    "priceHistory": "Price History (7D, 1M, 3M)",
+    "addFavorite": "Add to Favorites",
+    "removeFavorite": "Remove Favorite",
+    "setAlert": "Set Price Alert",
+    "goToStore": "Go to Store",
+    "lowestBadge": "#1 Lowest Price",
+    "inStock": "In Stock",
+    "outOfStock": "Out of Stock"
+  },
+  "profile": {
+    "title": "User Profile",
+    "telegramInfo": "Telegram Information",
+    "phoneNumber": "Your Phone Number",
+    "phonePlaceholder": "+998 90 123 45 67",
+    "savePhone": "Save Phone Number",
+    "language": "Select Language",
+    "phoneSaved": "Phone number saved successfully!"
+  },
+  "alerts": {
+    "title": "Price Drop Alerts",
+    "subtitle": "Tracked smartphones and target prices",
+    "targetPrice": "Target Price",
+    "currentLowest": "Current Lowest Price",
+    "setAlert": "Set Alert",
+    "enterTargetPrice": "Enter target price in UZS",
+    "noAlerts": "No price alerts set yet"
+  },
+  "favorites": {
+    "title": "Favorites",
+    "noFavorites": "Favorites list is empty"
+  }
+}

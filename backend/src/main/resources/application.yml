@@ -1,0 +1,31 @@
+server:
+  port: ${PORT:5001}
+
+spring:
+  application:
+    name: priceiq-backend
+  datasource:
+    url: ${DB_URL:${SPRING_DATASOURCE_URL:jdbc:postgresql://ep-frosty-flower-ayl6bzxy-pooler.c-5.us-east-2.aws.neon.tech/neondb?sslmode=require}}
+    driver-class-name: org.postgresql.Driver
+    username: ${DB_USER:${SPRING_DATASOURCE_USERNAME:neondb_owner}}
+    password: ${DB_PASS:${SPRING_DATASOURCE_PASSWORD:npg_XYvxkjzQ0nc2}}
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+
+telegram:
+  bot:
+    username: ${TELEGRAM_BOT_USERNAME:princeiquz_bot}
+    token: ${TELEGRAM_BOT_TOKEN:8603794898:AAEPq2YEv7OFBEoSkzYkrhiPe3JCPqcfDko}
+    webapp-url: ${TELEGRAM_WEBAPP_URL:https://frontend-three-gamma-ca7l713sls.vercel.app}
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html

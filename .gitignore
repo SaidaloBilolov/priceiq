@@ -1,0 +1,13 @@
+# Logs and caches
+node_modules/
+dist/
+target/
+*.log
+.DS_Store
+.idea/
+.vscode/
+.vercel/
+*.class
+*.jar
+uploads/*
+!uploads/.gitkeep

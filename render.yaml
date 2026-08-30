@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: priceiq-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    region: oregon
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: DB_URL
+        value: jdbc:postgresql://ep-frosty-flower-ayl6bzxy-pooler.c-5.us-east-2.aws.neon.tech/neondb?sslmode=require
+      - key: DB_USER
+        value: neondb_owner
+      - key: DB_PASS
+        value: npg_XYvxkjzQ0nc2
+      - key: TELEGRAM_BOT_USERNAME
+        value: princeiquz_bot
+      - key: TELEGRAM_BOT_TOKEN
+        value: 8603794898:AAEPq2YEv7OFBEoSkzYkrhiPe3JCPqcfDko
+      - key: TELEGRAM_WEBAPP_URL
+        value: https://frontend-three-gamma-ca7l713sls.vercel.app

@@ -1,0 +1,68 @@
+{
+  "common": {
+    "appName": "PRICEIQ",
+    "search": "Поиск",
+    "save": "Сохранить",
+    "cancel": "Отмена",
+    "delete": "Удалить",
+    "loading": "Загрузка...",
+    "error": "Произошла ошибка",
+    "success": "Успешно",
+    "all": "Все",
+    "currency": "сум",
+    "back": "Назад"
+  },
+  "navigation": {
+    "home": "Главная",
+    "search": "Поиск",
+    "favorites": "Избранное",
+    "alerts": "Уведомления",
+    "profile": "Профиль"
+  },
+  "home": {
+    "title": "Мониторинг Цен на Смартфоны",
+    "subtitle": "Сравнивайте самые низкие цены в Olcha, Texnomart, Asaxiy и Uzum",
+    "searchPlaceholder": "Введите модель смартфона (например: iPhone 16 Pro Max)...",
+    "categories": "Категории",
+    "bestDeals": "Лучшие Предложения Сегодня",
+    "viewDetails": "Подробнее",
+    "storesCompared": "магазинов сравнено"
+  },
+  "product": {
+    "lowestPrice": "Самая Низкая Цена",
+    "averagePrice": "Средняя Цена на Рынке",
+    "highestPrice": "Самая Высокая Цена",
+    "dealScore": "Оценка Выгоды",
+    "compareStores": "Цены в Магазинах",
+    "priceHistory": "История Цен (7D, 1M, 3M)",
+    "addFavorite": "Добавить в избранное",
+    "removeFavorite": "Удалить из избранного",
+    "setAlert": "Установить алерт",
+    "goToStore": "Перейти в магазин",
+    "lowestBadge": "#1 Самый Дешевый",
+    "inStock": "В наличии",
+    "outOfStock": "Нет в наличии"
+  },
+  "profile": {
+    "title": "Профиль Пользователя",
+    "telegramInfo": "Данные Telegram",
+    "phoneNumber": "Ваш Номер Телефона",
+    "phonePlaceholder": "+998 90 123 45 67",
+    "savePhone": "Сохранить номер",
+    "language": "Выберите язык",
+    "phoneSaved": "Номер телефона успешно сохранен!"
+  },
+  "alerts": {
+    "title": "Уведомления о Снижении Цен",
+    "subtitle": "Отслеживаемые смартфоны и целевые цены",
+    "targetPrice": "Целевая Цена",
+    "currentLowest": "Текущая Минимальная Цена",
+    "setAlert": "Установить уведомление",
+    "enterTargetPrice": "Введите целевую цену в сумах",
+    "noAlerts": "У вас пока нет уведомлений о цене"
+  },
+  "favorites": {
+    "title": "Избранное",
+    "noFavorites": "Список избранного пуст"
+  }
+}

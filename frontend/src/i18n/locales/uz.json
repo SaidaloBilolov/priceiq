@@ -1,0 +1,68 @@
+{
+  "common": {
+    "appName": "PRICEIQ",
+    "search": "Qidirish",
+    "save": "Saqlash",
+    "cancel": "Bekor qilish",
+    "delete": "O'chirish",
+    "loading": "Yuklanmoqda...",
+    "error": "Xatolik yuz berdi",
+    "success": "Muvaffaqiyatli",
+    "all": "Barchasi",
+    "currency": "so'm",
+    "back": "Orqaga"
+  },
+  "navigation": {
+    "home": "Bosh sahifa",
+    "search": "Qidiruv",
+    "favorites": "Sevimlilar",
+    "alerts": "Narx Alertlari",
+    "profile": "Profil"
+  },
+  "home": {
+    "title": "Smartfonlar Narxlari Monitoringi",
+    "subtitle": "Olcha, Texnomart, Asaxiy va Uzum do'konlaridagi eng arzon narxlarni solishtiring",
+    "searchPlaceholder": "Smartfon modelini kiriting (masalan: iPhone 16 Pro Max)...",
+    "categories": "Kategoriyalar",
+    "bestDeals": "Bugungi Eng Yaxshi Takliflar",
+    "viewDetails": "Batafsil ko'rish",
+    "storesCompared": "do'kon solishtirildi"
+  },
+  "product": {
+    "lowestPrice": "Eng Arzon Narx",
+    "averagePrice": "Bozor O'rtacha Narxi",
+    "highestPrice": "Eng Yuqori Narx",
+    "dealScore": "Bitim Bahosi",
+    "compareStores": "Do'konlardagi Narxlar",
+    "priceHistory": "Narxlar Tarixi (7D, 1M, 3M)",
+    "addFavorite": "Sevimlilarga qo'shish",
+    "removeFavorite": "Sevimlilardan olib tashlash",
+    "setAlert": "Narx Alert o'rnatish",
+    "goToStore": "Do'konga o'tish",
+    "lowestBadge": "#1 Eng Arzon",
+    "inStock": "Mavjud",
+    "outOfStock": "Mavjud emas"
+  },
+  "profile": {
+    "title": "Foydalanuvchi Profili",
+    "telegramInfo": "Telegram Ma'lumotlari",
+    "phoneNumber": "Telefon Raqamingiz",
+    "phonePlaceholder": "+998 90 123 45 67",
+    "savePhone": "Raqamni saqlash",
+    "language": "Tilni tanlang",
+    "phoneSaved": "Telefon raqami muvaffaqiyatli saqlandi!"
+  },
+  "alerts": {
+    "title": "Narx Tushishi Xabarnomalari",
+    "subtitle": "Kuzatilayotgan smartfonlar va maqsad qilingan narxlar",
+    "targetPrice": "Maqsadli Narx",
+    "currentLowest": "Joriy Eng Arzon Narx",
+    "setAlert": "Alert o'rnatish",
+    "enterTargetPrice": "Maqsadli narxni so'mda kiriting",
+    "noAlerts": "Sizda hali narx alertlari mavjud emas"
+  },
+  "favorites": {
+    "title": "Sevimlilar",
+    "noFavorites": "Sevimlilar ro'yxati bo'sh"
+  }
+}
