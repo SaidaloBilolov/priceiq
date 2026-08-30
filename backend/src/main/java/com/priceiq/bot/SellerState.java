@@ -1,0 +1,14 @@
+package com.priceiq.bot;
+
+public enum SellerState {
+    START,
+    AWAITING_CONTACT,
+    MAIN_MENU,
+    ADD_PRODUCT_PHOTO,
+    ADD_PRODUCT_NAME,
+    ADD_PRODUCT_PRICE,
+    ADD_PRODUCT_DESCRIPTION,
+    ADD_PRODUCT_CONFIRM,
+    UPDATE_PRICE_SELECT,
+    UPDATE_PRICE_ENTER
+}
