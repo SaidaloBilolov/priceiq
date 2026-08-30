@@ -1623,6 +1623,13 @@ public class SellerBotService extends TelegramLongPollingBot {
         try {
             execute(msg);
         } catch (TelegramApiException e) {
+            if (msg.getParseMode() != null) {
+                try {
+                    msg.setParseMode(null);
+                    execute(msg);
+                    return;
+                } catch (TelegramApiException ignored) {}
+            }
             e.printStackTrace();
         }
     }
