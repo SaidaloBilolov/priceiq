@@ -273,7 +273,7 @@ public class SellerBotService extends TelegramLongPollingBot {
     private boolean isCancelOrMenu(String text) {
         if (text == null) return false;
         String t = text.toLowerCase();
-        return t.contains("asosiy menyu") || t.contains("главное меню") || t.contains("bekor qilish") || t.contains("отмена") || t.equals("/start") || t.equals("/cancel");
+        return t.contains("asosiy menyu") || t.contains("главное меню") || t.contains("bekor qilish") || t.contains("отмена") || t.contains("suhbatni yakunlash") || t.contains("завершить") || t.equals("/start") || t.equals("/menu") || t.equals("/cancel");
     }
 
     private boolean isPhoneNumberFormat(String text) {
@@ -714,21 +714,33 @@ public class SellerBotService extends TelegramLongPollingBot {
             }
         }
 
-        session.setState(SellerState.MAIN_MENU);
+        // Set all active operators into live chat mode with this user!
+        for (Long opChatId : targetOperatorChatIds) {
+            SellerSession opSession = sessions.computeIfAbsent(opChatId, id -> new SellerSession(opChatId, opChatId));
+            opSession.setTempReplyToChatId(userChatId);
+            opSession.setState(SellerState.AWAITING_OPERATOR_REPLY);
+        }
+
+        // Maintain active live chat mode for user
+        session.setState(SellerState.AWAITING_SUPPORT_MESSAGE);
 
         SendMessage confirmMsg = new SendMessage();
         confirmMsg.setChatId(userChatId.toString());
         confirmMsg.setParseMode(null);
         confirmMsg.setText("ru".equals(lang) ?
-                "✅ Ваше обращение успешно отправлено!\n\nОператоры поддержки уже получили его и ответят вам прямо в этом чате." :
-                "✅ Murojaatingiz muvaffaqiyatli qabul qilindi!\n\nSupport operatorlarimiz xabaringizni olishdi va tez orada to'g'ridan-to'g'ri ushbu chat orqali javob berishadi.");
-        send(confirmMsg);
+                "✅ Ваше сообщение передано оператору поддержки!\n\nВы можете продолжать писать прямо сюда. Для выхода нажмите '🏠 Главное меню'." :
+                "✅ Xabaringiz support operatorga yetkazildi!\n\nSuhbatni shu yerda davom ettirishingiz mumkin. Menyuga qaytish uchun '🏠 Asosiy Menyu' tugmasini bosing.");
 
-        if (st.isPresent()) {
-            sendSellerMainMenu(userChatId, "ru".equals(lang) ? "Главное меню:" : "Asosiy menyu:", session, lang);
-        } else {
-            sendBuyerMainMenu(userChatId, "ru".equals(lang) ? "Главное меню:" : "Asosiy menyu:", tgUser, lang);
-        }
+        ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
+        keyboardMarkup.setResizeKeyboard(true);
+        List<KeyboardRow> kbRows = new ArrayList<>();
+        KeyboardRow kbRow = new KeyboardRow();
+        kbRow.add(new KeyboardButton("ru".equals(lang) ? "🏠 Главное меню / Завершить" : "🏠 Asosiy Menyu / Suhbatni yakunlash"));
+        kbRows.add(kbRow);
+        keyboardMarkup.setKeyboard(kbRows);
+        confirmMsg.setReplyMarkup(keyboardMarkup);
+
+        send(confirmMsg);
     }
 
     private void handleOperatorReply(Message message, SupportOperator operator, String lang) {
@@ -773,7 +785,7 @@ public class SellerBotService extends TelegramLongPollingBot {
 
             SendMessage ack = new SendMessage();
             ack.setChatId(message.getChatId().toString());
-            ack.setText("✅ Javobingiz foydalanuvchiga (Chat ID: " + targetUserChatId + ") muvaffaqiyatli yetkazildi!");
+            ack.setText("✅ Javobingiz foydalanuvchiga (Chat ID: " + targetUserChatId + ") yetkazildi! Yana xabar yozishingiz mumkin.");
             send(ack);
         } catch (Exception e) {
             SendMessage err = new SendMessage();
@@ -836,7 +848,7 @@ public class SellerBotService extends TelegramLongPollingBot {
 
             SendMessage ack = new SendMessage();
             ack.setChatId(message.getChatId().toString());
-            ack.setText("✅ Javobingiz foydalanuvchiga (Chat ID: " + targetUserChatId + ") muvaffaqiyatli yetkazildi!");
+            ack.setText("✅ Javobingiz foydalanuvchiga (Chat ID: " + targetUserChatId + ") yetkazildi! Suhbatni davom ettirishingiz mumkin.");
             send(ack);
         } catch (Exception e) {
             SendMessage err = new SendMessage();
@@ -845,8 +857,8 @@ public class SellerBotService extends TelegramLongPollingBot {
             send(err);
         }
 
-        session.setState(SellerState.MAIN_MENU);
-        session.setTempReplyToChatId(null);
+        // Keep operator in live chat mode with this user!
+        session.setState(SellerState.AWAITING_OPERATOR_REPLY);
     }
 
     private Long extractTargetChatId(Message repliedTo) {
