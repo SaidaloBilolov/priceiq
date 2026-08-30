@@ -1,6 +1,18 @@
 import { Product, Category, Favorite, PriceAlert, User } from '../types';
 
-const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:5001/api';
+export const getApiBaseUrl = (): string => {
+  const customUrl = localStorage.getItem('priceiq_custom_api_url');
+  if (customUrl && customUrl.trim().length > 0) {
+    return customUrl.trim().replace(/\/$/, '');
+  }
+  const envUrl = (import.meta as any).env?.VITE_API_BASE_URL;
+  if (envUrl && envUrl.trim().length > 0) {
+    return envUrl.trim().replace(/\/$/, '');
+  }
+  return 'https://priceiq-backend.onrender.com/api';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 const DEFAULT_CATEGORIES: Category[] = [
   { id: 1, nameUz: 'Smartfonlar', nameRu: 'Смартфоны', nameEn: 'Smartphones' },
@@ -64,71 +76,22 @@ const DEFAULT_PRODUCTS: Product[] = [
       { id: 4, store: { id: 3, name: 'Olcha.uz' }, priceUzs: 15400000, isAvailable: true, offerUrl: 'https://olcha.uz' },
       { id: 5, store: { id: 1, name: 'Uzum Market' }, priceUzs: 15900000, isAvailable: true, offerUrl: 'https://uzum.uz' }
     ]
-  },
-  {
-    id: 3,
-    titleUz: 'Xiaomi 14 Ultra 512GB Black',
-    titleRu: 'Xiaomi 14 Ultra 512GB Черный',
-    titleEn: 'Xiaomi 14 Ultra 512GB Black',
-    brand: 'Xiaomi',
-    storage: '512GB',
-    ram: '16GB',
-    color: 'Qora',
-    descriptionUz: 'Leica 1 dyuymli optika, Snapdragon 8 Gen 3 protsessor va 90W tezkor zaryadlash',
-    imageUrl: 'https://images.unsplash.com/photo-1598327105666-5b89351aff97?auto=format&fit=crop&w=600&q=80',
-    lowestPriceUzs: 13200000,
-    averagePriceUzs: 13900000,
-    highestPriceUzs: 14500000,
-    dealScore: 89,
-    dealBadgeUz: '89/100 - BOZOR NARXI',
-    dealBadgeRu: '89/100 - РЫНОЧНАЯ ЦЕНА',
-    dealBadgeEn: '89/100 - FAIR DEAL',
-    category: { id: 1, nameUz: 'Smartfonlar', nameRu: 'Смартфоны', nameEn: 'Smartphones' },
-    storeName: 'Asaxiy',
-    storeOfferUrl: 'https://asaxiy.uz',
-    offers: [
-      { id: 6, store: { id: 4, name: 'Asaxiy' }, priceUzs: 13200000, isAvailable: true, offerUrl: 'https://asaxiy.uz' }
-    ]
   }
 ];
-
-const LOCAL_STORAGE_KEY = 'priceiq_products_db';
-
-const getLocalProducts = (): Product[] => {
-  try {
-    const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    }
-  } catch (e) {
-    // ignore
-  }
-  return DEFAULT_PRODUCTS;
-};
-
-const saveLocalProducts = (prods: Product[]): void => {
-  try {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(prods));
-  } catch (e) {
-    // ignore
-  }
-};
 
 export const api = {
   // User Profile & Phone Number Management
   async getUserProfile(telegramId: number, firstName?: string, username?: string, languageCode?: string): Promise<User> {
+    const baseUrl = getApiBaseUrl();
     try {
       const params = new URLSearchParams({ telegramId: telegramId.toString() });
       if (firstName) params.set('firstName', firstName);
       if (username) params.set('username', username);
       if (languageCode) params.set('languageCode', languageCode);
 
-      const res = await fetch(`${API_BASE_URL}/users/me?${params.toString()}`);
+      const res = await fetch(`${baseUrl}/users/me?${params.toString()}`);
       if (res.ok) return res.json();
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) {}
     return {
       id: 1,
       telegramId,
@@ -140,16 +103,15 @@ export const api = {
   },
 
   async updatePhoneNumber(telegramId: number, phoneNumber: string, languageCode?: string): Promise<User> {
+    const baseUrl = getApiBaseUrl();
     try {
-      const res = await fetch(`${API_BASE_URL}/users/phone`, {
+      const res = await fetch(`${baseUrl}/users/phone`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ telegramId, phoneNumber, languageCode })
       });
       if (res.ok) return res.json();
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) {}
     return {
       id: 1,
       telegramId,
@@ -161,145 +123,97 @@ export const api = {
 
   // Categories
   async getCategories(): Promise<Category[]> {
+    const baseUrl = getApiBaseUrl();
     try {
-      const res = await fetch(`${API_BASE_URL}/categories`);
+      const res = await fetch(`${baseUrl}/categories`);
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) return data;
       }
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) {}
     return DEFAULT_CATEGORIES;
   },
 
   // Products
   async getProducts(params?: { search?: string; categoryId?: number }): Promise<Product[]> {
+    const baseUrl = getApiBaseUrl();
     const query = new URLSearchParams();
     if (params?.search) query.set('search', params.search);
     if (params?.categoryId) query.set('categoryId', params.categoryId.toString());
 
     try {
-      const res = await fetch(`${API_BASE_URL}/products?${query.toString()}`);
+      const res = await fetch(`${baseUrl}/products?${query.toString()}`);
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) return data;
+        if (Array.isArray(data) && data.length > 0) {
+          return data;
+        }
       }
     } catch (e) {
-      // ignore
+      console.warn('Backend fetch fallback', e);
     }
 
-    const localList = getLocalProducts();
-    if (params?.search) {
-      const q = params.search.toLowerCase();
-      return localList.filter(p => (p.titleUz || '').toLowerCase().includes(q) || (p.brand || '').toLowerCase().includes(q));
-    }
-    return localList;
+    return DEFAULT_PRODUCTS;
   },
 
   async getProductById(id: number | string): Promise<Product> {
-    const numId = Number(id);
-    const localList = getLocalProducts();
-    const found = localList.find(p => p.id === numId);
-    if (found) return found;
+    const baseUrl = getApiBaseUrl();
+    try {
+      const res = await fetch(`${baseUrl}/products/${id}`);
+      if (res.ok) return res.json();
+    } catch (e) {}
     return DEFAULT_PRODUCTS[0];
   },
 
   // Admin Product CRUD APIs
   async createProduct(productData: Partial<Product>): Promise<Product> {
-    const priceNum = Number(productData.priceUzs) || 1000000;
-    const newProduct: Product = {
-      id: Date.now(),
-      titleUz: productData.titleUz || 'Yangi Mahsulot',
-      titleRu: productData.titleRu || productData.titleUz || 'Новый Товар',
-      titleEn: productData.titleEn || productData.titleUz || 'New Product',
-      brand: productData.brand || 'General',
-      storage: productData.storage || '',
-      ram: productData.ram || '',
-      color: productData.color || '',
-      descriptionUz: productData.descriptionUz || '',
-      descriptionRu: productData.descriptionRu || '',
-      descriptionEn: productData.descriptionEn || '',
-      imageUrl: productData.imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=600&q=80',
-      lowestPriceUzs: priceNum,
-      averagePriceUzs: priceNum,
-      highestPriceUzs: priceNum,
-      dealScore: 92,
-      dealBadgeUz: '92/100 - YAXSHI NARX',
-      dealBadgeRu: '92/100 - ХОРОШАЯ ЦЕНА',
-      dealBadgeEn: '92/100 - GOOD DEAL',
-      category: productData.category || { id: 1, nameUz: 'Smartfonlar', nameRu: 'Смартфоны', nameEn: 'Smartphones' },
-      storeName: productData.storeName || 'Uzum Market',
-      storeOfferUrl: productData.storeOfferUrl || 'https://uzum.uz',
-      offers: [
-        {
-          id: Date.now(),
-          store: { id: 1, name: productData.storeName || 'Uzum Market' },
-          priceUzs: priceNum,
-          isAvailable: true,
-          offerUrl: productData.storeOfferUrl || 'https://uzum.uz'
-        }
-      ]
-    };
-
-    const existing = getLocalProducts();
-    saveLocalProducts([newProduct, ...existing]);
-
+    const baseUrl = getApiBaseUrl();
     try {
-      fetch(`${API_BASE_URL}/products`, {
+      const res = await fetch(`${baseUrl}/products`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(productData)
-      }).catch(() => {});
+      });
+      if (res.ok) return res.json();
     } catch (e) {}
 
-    return newProduct;
+    return DEFAULT_PRODUCTS[0];
   },
 
   async updateProduct(id: number, productData: Partial<Product>): Promise<Product> {
-    const existing = getLocalProducts();
-    let updatedProduct: Product = { ...existing[0], ...productData, id };
-    const updatedList = existing.map(p => {
-      if (p.id === id) {
-        updatedProduct = { ...p, ...productData };
-        return updatedProduct;
-      }
-      return p;
-    });
-    saveLocalProducts(updatedList);
-
+    const baseUrl = getApiBaseUrl();
     try {
-      fetch(`${API_BASE_URL}/products/${id}`, {
+      const res = await fetch(`${baseUrl}/products/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(productData)
-      }).catch(() => {});
+      });
+      if (res.ok) return res.json();
     } catch (e) {}
 
-    return updatedProduct;
+    return DEFAULT_PRODUCTS[0];
   },
 
   async deleteProduct(id: number): Promise<void> {
-    const existing = getLocalProducts();
-    saveLocalProducts(existing.filter(p => p.id !== id));
+    const baseUrl = getApiBaseUrl();
     try {
-      fetch(`${API_BASE_URL}/products/${id}`, { method: 'DELETE' }).catch(() => {});
+      await fetch(`${baseUrl}/products/${id}`, { method: 'DELETE' });
     } catch (e) {}
   },
 
   // Image Upload API
   async uploadProductImage(file: File): Promise<{ imageUrl: string }> {
+    const baseUrl = getApiBaseUrl();
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const res = await fetch(`${API_BASE_URL}/products/upload-image`, {
+      const res = await fetch(`${baseUrl}/products/upload-image`, {
         method: 'POST',
         body: formData
       });
       if (res.ok) return res.json();
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) {}
+
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onloadend = () => resolve({ imageUrl: reader.result as string });
@@ -309,54 +223,50 @@ export const api = {
 
   // Favorites
   async getFavorites(telegramId: number = 99887766): Promise<Product[]> {
+    const baseUrl = getApiBaseUrl();
     try {
-      const res = await fetch(`${API_BASE_URL}/favorites?telegramId=${telegramId}`);
+      const res = await fetch(`${baseUrl}/favorites?telegramId=${telegramId}`);
       if (res.ok) {
         const favs: Favorite[] = await res.json();
         return favs.map(f => f.product);
       }
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) {}
     return [DEFAULT_PRODUCTS[0]];
   },
 
   async toggleFavorite(telegramId: number, productId: number): Promise<{ favorited: boolean }> {
+    const baseUrl = getApiBaseUrl();
     try {
-      const res = await fetch(`${API_BASE_URL}/favorites/toggle`, {
+      const res = await fetch(`${baseUrl}/favorites/toggle`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ telegramId, productId })
       });
       if (res.ok) return { favorited: true };
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) {}
     return { favorited: true };
   },
 
   // Price Alerts
   async getPriceAlerts(telegramId: number = 99887766): Promise<PriceAlert[]> {
+    const baseUrl = getApiBaseUrl();
     try {
-      const res = await fetch(`${API_BASE_URL}/alerts?telegramId=${telegramId}`);
+      const res = await fetch(`${baseUrl}/alerts?telegramId=${telegramId}`);
       if (res.ok) return res.json();
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) {}
     return [];
   },
 
   async createPriceAlert(telegramId: number, productId: number, targetPriceUzs: number): Promise<PriceAlert> {
+    const baseUrl = getApiBaseUrl();
     try {
-      const res = await fetch(`${API_BASE_URL}/alerts`, {
+      const res = await fetch(`${baseUrl}/alerts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ telegramId, productId, targetPriceUzs })
       });
       if (res.ok) return res.json();
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) {}
     return {
       id: Date.now(),
       userId: 1,
@@ -368,8 +278,9 @@ export const api = {
   },
 
   async deletePriceAlert(id: number): Promise<void> {
+    const baseUrl = getApiBaseUrl();
     try {
-      fetch(`${API_BASE_URL}/alerts/${id}`, { method: 'DELETE' }).catch(() => {});
+      fetch(`${baseUrl}/alerts/${id}`, { method: 'DELETE' }).catch(() => {});
     } catch (e) {}
   }
 };

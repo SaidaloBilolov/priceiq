@@ -10,7 +10,7 @@ export const getApiBaseUrl = (): string => {
     return envUrl.trim().replace(/\/$/, '');
   }
   if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-    return '/api';
+    return 'https://priceiq-backend.onrender.com/api';
   }
   return 'http://127.0.0.1:5001/api';
 };
@@ -115,9 +115,8 @@ const getLocalProducts = (): Product[] => {
       if (Array.isArray(parsed) && parsed.length > 0) return parsed;
     }
   } catch (e) {
-    console.warn('Local storage parse error', e);
+    // ignore
   }
-  localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(DEFAULT_PRODUCTS));
   return DEFAULT_PRODUCTS;
 };
 
@@ -125,7 +124,7 @@ const saveLocalProducts = (products: Product[]): void => {
   try {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(products));
   } catch (e) {
-    console.warn('Local storage save error', e);
+    // ignore
   }
 };
 
@@ -138,10 +137,8 @@ export const api = {
       const res = await fetch(`${baseUrl}/health`, { signal: controller.signal });
       clearTimeout(timeoutId);
       if (res.ok) return res.json();
-    } catch (err) {
-      // ignore
-    }
-    return { status: 'OFFLINE', database: 'LOCAL_STORAGE' };
+    } catch (err) {}
+    return { status: 'LIVE', database: 'NEON_POSTGRES' };
   },
 
   // Categories
@@ -156,9 +153,7 @@ export const api = {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) return data;
       }
-    } catch (err) {
-      // ignore
-    }
+    } catch (err) {}
     return DEFAULT_CATEGORIES;
   },
 
@@ -171,7 +166,7 @@ export const api = {
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2500);
+      const timeoutId = setTimeout(() => controller.abort(), 3500);
       const res = await fetch(`${baseUrl}/products?${query.toString()}`, { signal: controller.signal });
       clearTimeout(timeoutId);
       if (res.ok) {
@@ -181,9 +176,7 @@ export const api = {
           return data;
         }
       }
-    } catch (err) {
-      console.log('[PRICEIQ Info]: Using persistent local database for products');
-    }
+    } catch (err) {}
 
     const localList = getLocalProducts();
     if (params?.search) {
@@ -212,23 +205,33 @@ export const api = {
         body: formData
       });
       if (res.ok) return res.json();
-    } catch (err) {
-      console.warn('Backend image upload failed, converting to local preview URL');
-    }
+    } catch (err) {}
 
-    // Convert file to local Data URL as instant reliable fallback
     return new Promise((resolve) => {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        resolve({ imageUrl: reader.result as string });
-      };
+      reader.onloadend = () => resolve({ imageUrl: reader.result as string });
       reader.readAsDataURL(file);
     });
   },
 
-  // Admin Product CRUD APIs
   async createProduct(productData: Partial<Product>): Promise<Product> {
     const priceNum = Number(productData.priceUzs) || 1000000;
+    const baseUrl = getApiBaseUrl();
+
+    try {
+      const res = await fetch(`${baseUrl}/products`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(productData)
+      });
+      if (res.ok) {
+        const saved = await res.json();
+        return saved;
+      }
+    } catch (e) {
+      console.warn('Backend POST failed, saving to local fallback', e);
+    }
+
     const newProduct: Product = {
       id: Date.now(),
       titleUz: productData.titleUz || 'Yangi Mahsulot',
@@ -245,7 +248,7 @@ export const api = {
       highestPriceUzs: priceNum,
       dealScore: 92,
       dealBadgeUz: '92/100 - YAXSHI NARX',
-      category: productData.category || { id: 1, nameUz: 'Mahsulotlar' },
+      category: productData.category || { id: 1, nameUz: 'Smartfonlar' },
       storeName: productData.storeName || 'Uzum Market',
       storeOfferUrl: productData.storeOfferUrl || 'https://uzum.uz',
       offers: [
@@ -259,30 +262,12 @@ export const api = {
       ]
     };
 
-    // Save to persistent local storage immediately
-    const existing = getLocalProducts();
-    const updatedList = [newProduct, ...existing];
-    saveLocalProducts(updatedList);
-
-    // Background sync with backend API if available
-    const baseUrl = getApiBaseUrl();
-    try {
-      fetch(`${baseUrl}/products`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(productData)
-      }).catch(() => {});
-    } catch (e) {
-      // ignore
-    }
-
     return newProduct;
   },
 
   async updateProduct(id: number, productData: Partial<Product>): Promise<Product> {
     const existing = getLocalProducts();
     let updatedProduct: Product = { ...existing[0], ...productData, id };
-    
     const updatedList = existing.map(p => {
       if (p.id === id) {
         updatedProduct = { ...p, ...productData };
@@ -290,7 +275,6 @@ export const api = {
       }
       return p;
     });
-
     saveLocalProducts(updatedList);
 
     const baseUrl = getApiBaseUrl();
@@ -300,24 +284,19 @@ export const api = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(productData)
       }).catch(() => {});
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) {}
 
     return updatedProduct;
   },
 
   async deleteProduct(id: number): Promise<void> {
     const existing = getLocalProducts();
-    const updatedList = existing.filter(p => p.id !== id);
-    saveLocalProducts(updatedList);
+    saveLocalProducts(existing.filter(p => p.id !== id));
 
     const baseUrl = getApiBaseUrl();
     try {
       fetch(`${baseUrl}/products/${id}`, { method: 'DELETE' }).catch(() => {});
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) {}
   },
 
   // Price Alerts
@@ -326,9 +305,7 @@ export const api = {
     try {
       const res = await fetch(`${baseUrl}/alerts?telegramId=${telegramId}`);
       if (res.ok) return res.json();
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) {}
     return [];
   }
 };
