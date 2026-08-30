@@ -47,6 +47,15 @@ public class UserService {
     }
 
     @Transactional
+    public User updatePhoneNumber(Long telegramId, String phoneNumber, String languageCode) {
+        UpdatePhoneRequest req = new UpdatePhoneRequest();
+        req.setTelegramId(telegramId);
+        req.setPhoneNumber(phoneNumber);
+        req.setLanguageCode(languageCode);
+        return updatePhoneNumber(req);
+    }
+
+    @Transactional
     public User updatePhoneNumber(UpdatePhoneRequest request) {
         User user = userRepository.findByTelegramId(request.getTelegramId())
                 .orElseGet(() -> {

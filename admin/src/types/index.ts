@@ -12,6 +12,8 @@ export interface Store {
   logoUrl?: string;
   websiteUrl?: string;
   rating?: number;
+  ownerPhone?: string;
+  ownerChatId?: number;
 }
 
 export interface ProductOffer {

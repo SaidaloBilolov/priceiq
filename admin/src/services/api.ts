@@ -1,4 +1,4 @@
-import { Product, Category, PriceAlert } from '../types';
+import { Product, Category, PriceAlert, Store } from '../types';
 
 export const getApiBaseUrl = (): string => {
   const customUrl = localStorage.getItem('priceiq_custom_api_url');
@@ -161,6 +161,58 @@ export const api = {
       }
     } catch (err) {}
     return DEFAULT_CATEGORIES;
+  },
+
+  // Stores & Sellers Management
+  async getStores(): Promise<Store[]> {
+    const baseUrl = getApiBaseUrl();
+    try {
+      const res = await fetch(`${baseUrl}/stores`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) return data;
+      }
+    } catch (err) {}
+    return [
+      { id: 1, name: 'TechStore Pro (Rasmiy Sotuvchi)', ownerPhone: '+998956233923', rating: 4.9, websiteUrl: 'https://techstore.uz' },
+      { id: 2, name: 'Uzum Nasiya / Market', ownerPhone: '+998901234567', rating: 4.8, websiteUrl: 'https://uzum.uz' },
+      { id: 3, name: 'Olcha.uz', ownerPhone: '+998935000000', rating: 4.8, websiteUrl: 'https://olcha.uz' },
+      { id: 4, name: 'Texnomart', ownerPhone: '+998971234567', rating: 4.7, websiteUrl: 'https://texnomart.uz' },
+      { id: 5, name: 'Asaxiy', ownerPhone: '+998991234567', rating: 4.9, websiteUrl: 'https://asaxiy.uz' }
+    ];
+  },
+
+  async createStore(storeData: Partial<Store>): Promise<Store> {
+    const baseUrl = getApiBaseUrl();
+    try {
+      const res = await fetch(`${baseUrl}/stores`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(storeData)
+      });
+      if (res.ok) return res.json();
+    } catch (err) {}
+    return { id: Date.now(), name: storeData.name || 'Yangi Do\'kon', ...storeData };
+  },
+
+  async updateStore(id: number, storeData: Partial<Store>): Promise<Store> {
+    const baseUrl = getApiBaseUrl();
+    try {
+      const res = await fetch(`${baseUrl}/stores/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(storeData)
+      });
+      if (res.ok) return res.json();
+    } catch (err) {}
+    return { id, name: storeData.name || 'Do\'kon', ...storeData };
+  },
+
+  async deleteStore(id: number): Promise<void> {
+    const baseUrl = getApiBaseUrl();
+    try {
+      await fetch(`${baseUrl}/stores/${id}`, { method: 'DELETE' });
+    } catch (err) {}
   },
 
   // Products

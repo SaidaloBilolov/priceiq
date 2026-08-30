@@ -12,11 +12,9 @@ import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.GetFile;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.send.SendPhoto;
-import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.api.objects.*;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
-import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardRemove;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardButton;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
@@ -46,6 +44,9 @@ public class SellerBotService extends TelegramLongPollingBot {
     private final PriceHistoryRepository priceHistoryRepository;
     private final CategoryRepository categoryRepository;
     private final StoreRepository storeRepository;
+    private final UserRepository userRepository;
+    private final FavoriteRepository favoriteRepository;
+    private final PriceAlertRepository priceAlertRepository;
     private final UserService userService;
     private final ProductService productService;
 
@@ -57,6 +58,9 @@ public class SellerBotService extends TelegramLongPollingBot {
                             PriceHistoryRepository priceHistoryRepository,
                             CategoryRepository categoryRepository,
                             StoreRepository storeRepository,
+                            UserRepository userRepository,
+                            FavoriteRepository favoriteRepository,
+                            PriceAlertRepository priceAlertRepository,
                             UserService userService,
                             ProductService productService) {
         this.productRepository = productRepository;
@@ -64,6 +68,9 @@ public class SellerBotService extends TelegramLongPollingBot {
         this.priceHistoryRepository = priceHistoryRepository;
         this.categoryRepository = categoryRepository;
         this.storeRepository = storeRepository;
+        this.userRepository = userRepository;
+        this.favoriteRepository = favoriteRepository;
+        this.priceAlertRepository = priceAlertRepository;
         this.userService = userService;
         this.productService = productService;
     }
@@ -99,9 +106,9 @@ public class SellerBotService extends TelegramLongPollingBot {
 
         SellerSession session = sessions.computeIfAbsent(chatId, id -> new SellerSession(chatId, tgUser != null ? tgUser.getId() : id));
 
-        // 1. Check if message is a Contact share
+        // 1. Handle Contact sharing
         if (message.hasContact()) {
-            handleContactReceived(chatId, message.getContact(), session);
+            handleContactReceived(chatId, message.getContact(), session, tgUser);
             return;
         }
 
@@ -114,6 +121,7 @@ public class SellerBotService extends TelegramLongPollingBot {
                 return;
             }
 
+            // --- Seller Actions ---
             if ("➕ Yangi Mahsulot Qo'shish".equalsIgnoreCase(text)) {
                 startAddProductFlow(chatId, session);
                 return;
@@ -134,15 +142,45 @@ public class SellerBotService extends TelegramLongPollingBot {
                 return;
             }
 
+            // --- Buyer Actions ---
+            if ("🔍 Mahsulot Qidirish".equalsIgnoreCase(text)) {
+                SendMessage prompt = new SendMessage();
+                prompt.setChatId(chatId.toString());
+                prompt.setParseMode("Markdown");
+                prompt.setText("🔍 Qidirmoqchi bo'lgan mahsulot nomini yozing (masalan: `iPhone 16`, `Samsung TV`, `Muzlatgich`):");
+                send(prompt);
+                return;
+            }
+
+            if ("🔥 Eng Yaxshi Takliflar".equalsIgnoreCase(text)) {
+                handleTopDeals(chatId);
+                return;
+            }
+
+            if ("⭐ Sevimlilarim".equalsIgnoreCase(text)) {
+                handleBuyerFavorites(chatId, tgUser);
+                return;
+            }
+
+            if ("🔔 Narx Alertlari".equalsIgnoreCase(text)) {
+                handleBuyerAlerts(chatId, tgUser);
+                return;
+            }
+
             if ("🏠 Asosiy Menyu".equalsIgnoreCase(text) || "/menu".equalsIgnoreCase(text)) {
                 session.setState(SellerState.MAIN_MENU);
                 session.clearTempProductData();
-                sendMainMenu(chatId, "Asosiy menyuga qaytdingiz:", session);
+                if (session.getStore() != null) {
+                    sendSellerMainMenu(chatId, "Asosiy menyu:", session);
+                } else {
+                    sendBuyerMainMenu(chatId, "Asosiy menyu:", tgUser);
+                }
                 return;
             }
 
             // Route based on FSM state
             switch (session.getState()) {
+                case ADD_PRODUCT_PHOTO -> handlePhotoAsTextOrUrl(chatId, text, session);
                 case ADD_PRODUCT_NAME -> handleProductNameInput(chatId, text, session);
                 case ADD_PRODUCT_PRICE -> handleProductPriceInput(chatId, text, session);
                 case ADD_PRODUCT_DESCRIPTION -> handleProductDescriptionInput(chatId, text, session);
@@ -161,15 +199,15 @@ public class SellerBotService extends TelegramLongPollingBot {
     // --- Authentication & Start ---
 
     private void handleStart(Long chatId, SellerSession session, org.telegram.telegrambots.meta.api.objects.User tgUser) {
-        String name = tgUser != null && tgUser.getFirstName() != null ? tgUser.getFirstName() : "Sotuvchi";
+        String name = tgUser != null && tgUser.getFirstName() != null ? tgUser.getFirstName() : "Foydalanuvchi";
 
-        // Check if seller already verified in database
+        // Check if user is already a registered Store Owner
         Optional<Store> existingStore = storeRepository.findByOwnerChatId(chatId);
         if (existingStore.isPresent()) {
             session.setStore(existingStore.get());
             session.setPhoneNumber(existingStore.get().getOwnerPhone());
             session.setState(SellerState.MAIN_MENU);
-            sendMainMenu(chatId, "👋 *Xush kelibsiz, " + name + "!*\n\n🏪 Do'koningiz: *" + existingStore.get().getName() + "*\nQuyidagi menyudan kerakli amalni tanlang:", session);
+            sendSellerMainMenu(chatId, "👋 *Xush kelibsiz, " + name + "!*\n\n🏪 Do'koningiz: *" + existingStore.get().getName() + "*\n\nQuyidagi menyu orqali mahsulotlaringizni boshqaring:", session);
             return;
         }
 
@@ -179,8 +217,8 @@ public class SellerBotService extends TelegramLongPollingBot {
         msg.setChatId(chatId.toString());
         msg.setParseMode("Markdown");
         msg.setText("👋 *Assalomu alaykum, " + name + "!*\n\n" +
-                "🛒 *PRICEIQ Sotuvchilar va Do'konlar Botiga xush kelibsiz!*\n\n" +
-                "Do'koningizni avtomatik tasdiqlash va mahsulotlaringizni boshqarish uchun pastdagi *📱 Telefon Raqamni Yuborish* tugmasini bosing:");
+                "🛒 *PRICEIQ* — O'zbekistondagi barcha do'konlar narxlarini solishtiruvchi aqlli platforma.\n\n" +
+                "Do'koningizni tasdiqlash (sotuvchilar uchun) yoki shaxsiy profilingizni ulash uchun pastdagi *📱 Telefon Raqamni Yuborish* tugmasini bosing:");
 
         ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
         keyboardMarkup.setResizeKeyboard(true);
@@ -199,12 +237,17 @@ public class SellerBotService extends TelegramLongPollingBot {
         send(msg);
     }
 
-    private void handleContactReceived(Long chatId, Contact contact, SellerSession session) {
+    private void handleContactReceived(Long chatId, Contact contact, SellerSession session, org.telegram.telegrambots.meta.api.objects.User tgUser) {
         String phone = contact.getPhoneNumber();
         if (phone == null) phone = "";
         String cleanPhone = phone.replaceAll("[^0-9]", "");
 
-        // Search store by phone
+        // Sync phone number with User entity for Web App / Mini App sync
+        if (tgUser != null) {
+            userService.updatePhoneNumber(tgUser.getId(), phone.startsWith("+") ? phone : "+" + phone, tgUser.getLanguageCode());
+        }
+
+        // Search if this phone number is assigned to a Store
         Optional<Store> storeOpt = storeRepository.findByCleanPhone(cleanPhone);
         if (storeOpt.isEmpty()) {
             storeOpt = storeRepository.findByOwnerPhone("+" + cleanPhone);
@@ -214,6 +257,7 @@ public class SellerBotService extends TelegramLongPollingBot {
         }
 
         if (storeOpt.isPresent()) {
+            // SELLER MODE
             Store store = storeOpt.get();
             store.setOwnerChatId(chatId);
             storeRepository.save(store);
@@ -222,23 +266,24 @@ public class SellerBotService extends TelegramLongPollingBot {
             session.setPhoneNumber(phone);
             session.setState(SellerState.MAIN_MENU);
 
-            sendMainMenu(chatId, "✅ *Tabriklaymiz, muvaffaqiyatli ulandingiz!*\n\n" +
-                    "🏪 *Do'koningiz:* `" + store.getName() + "`\n" +
+            sendSellerMainMenu(chatId, "✅ *Tabriklaymiz, Do'koningiz Muvaffaqiyatli Ulandi!*\n\n" +
+                    "🏪 *Do'kon:* `" + store.getName() + "`\n" +
                     "📞 *Telefon:* `" + phone + "`\n\n" +
-                    "Endi to'g'ridan-to'g'ri Telegram orqali yangi mahsulot qo'shishingiz va narxlarni boshqarishingiz mumkin:", session);
+                    "Endi quyidagi menyu orqali yangi mahsulot qo'shishingiz va narxlarni boshqarishingiz mumkin:", session);
         } else {
-            SendMessage msg = new SendMessage();
-            msg.setChatId(chatId.toString());
-            msg.setParseMode("Markdown");
-            msg.setText("❌ *Ushbu telefon raqamiga (" + phone + ") biriktirilgan do'kon topilmadi.*\n\n" +
-                    "Iltimos, do'koningizni tizimga qo'shish uchun administrator bilan bog'laning: @priceiq_admin");
-            send(msg);
+            // BUYER / CUSTOMER MODE
+            session.setStore(null);
+            session.setPhoneNumber(phone);
+            session.setState(SellerState.MAIN_MENU);
+
+            sendBuyerMainMenu(chatId, "✅ *Telefon raqamingiz muvaffaqiyatli saqlandi!*\n\n" +
+                    "Siz *PRICEIQ Xaridor* rejimidasiz. Barcha do'konlardagi eng arzon narxlarni qidirishingiz va narx tushishini kuzatishingiz mumkin:", tgUser);
         }
     }
 
-    // --- Main Menu ---
+    // --- Main Menus (Seller vs Buyer) ---
 
-    private void sendMainMenu(Long chatId, String text, SellerSession session) {
+    private void sendSellerMainMenu(Long chatId, String text, SellerSession session) {
         SendMessage msg = new SendMessage();
         msg.setChatId(chatId.toString());
         msg.setText(text);
@@ -265,7 +310,40 @@ public class SellerBotService extends TelegramLongPollingBot {
         send(msg);
     }
 
-    // --- Add Product FSM Flow ---
+    private void sendBuyerMainMenu(Long chatId, String text, org.telegram.telegrambots.meta.api.objects.User tgUser) {
+        SendMessage msg = new SendMessage();
+        msg.setChatId(chatId.toString());
+        msg.setText(text);
+        msg.setParseMode("Markdown");
+
+        ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
+        keyboardMarkup.setResizeKeyboard(true);
+
+        List<KeyboardRow> rows = new ArrayList<>();
+
+        KeyboardRow r1 = new KeyboardRow();
+        r1.add(new KeyboardButton("🔍 Mahsulot Qidirish"));
+        r1.add(new KeyboardButton("🔥 Eng Yaxshi Takliflar"));
+
+        KeyboardRow r2 = new KeyboardRow();
+        r2.add(new KeyboardButton("⭐ Sevimlilarim"));
+        r2.add(new KeyboardButton("🔔 Narx Alertlari"));
+
+        KeyboardRow r3 = new KeyboardRow();
+        KeyboardButton appBtn = new KeyboardButton("🚀 PRICEIQ Ilovasini Ochish");
+        appBtn.setWebApp(new WebAppInfo(webappUrl));
+        r3.add(appBtn);
+
+        rows.add(r1);
+        rows.add(r2);
+        rows.add(r3);
+        keyboardMarkup.setKeyboard(rows);
+        msg.setReplyMarkup(keyboardMarkup);
+
+        send(msg);
+    }
+
+    // --- Simplified Add Product FSM Flow ---
 
     private void startAddProductFlow(Long chatId, SellerSession session) {
         if (session.getStore() == null) {
@@ -280,7 +358,35 @@ public class SellerBotService extends TelegramLongPollingBot {
         msg.setChatId(chatId.toString());
         msg.setParseMode("Markdown");
         msg.setText("📸 *1-qadam: Mahsulot rasmini yuboring.*\n\n" +
-                "Iltimos, mahsulotning aniq va sifatli rasmini chatga yuboring (yoki 'O'tkazib yuborish' deb yozing):");
+                "Rasm faylini yuboring yoki rasm havolasini (URL) yozing (yoki 'O'tkazib yuborish' deb yozing):");
+
+        ReplyKeyboardMarkup keyboard = new ReplyKeyboardMarkup();
+        keyboard.setResizeKeyboard(true);
+        List<KeyboardRow> rows = new ArrayList<>();
+        KeyboardRow r = new KeyboardRow();
+        r.add(new KeyboardButton("⏩ O'tkazib yuborish"));
+        r.add(new KeyboardButton("🏠 Asosiy Menyu"));
+        rows.add(r);
+        keyboard.setKeyboard(rows);
+        msg.setReplyMarkup(keyboard);
+
+        send(msg);
+    }
+
+    private void handlePhotoAsTextOrUrl(Long chatId, String text, SellerSession session) {
+        if (text.startsWith("http://") || text.startsWith("https://")) {
+            session.setTempPhotoUrl(text);
+        } else {
+            session.setTempPhotoUrl("https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=600&q=80");
+        }
+
+        session.setState(SellerState.ADD_PRODUCT_NAME);
+
+        SendMessage msg = new SendMessage();
+        msg.setChatId(chatId.toString());
+        msg.setParseMode("Markdown");
+        msg.setText("📝 *2-qadam: Mahsulot nomini kiriting.*\n\n" +
+                "Misol: `iPhone 16 Pro Max 256GB` yoki `Artel Kir yuvish mashinasi` yoki `Krossovka Nike`:");
 
         ReplyKeyboardMarkup keyboard = new ReplyKeyboardMarkup();
         keyboard.setResizeKeyboard(true);
@@ -295,7 +401,6 @@ public class SellerBotService extends TelegramLongPollingBot {
     }
 
     private void handleProductPhotoUpload(Long chatId, List<PhotoSize> photos, SellerSession session) {
-        // Pick highest resolution photo
         PhotoSize largestPhoto = photos.stream()
                 .max(Comparator.comparing(PhotoSize::getFileSize))
                 .orElse(photos.get(photos.size() - 1));
@@ -303,7 +408,6 @@ public class SellerBotService extends TelegramLongPollingBot {
         String fileId = largestPhoto.getFileId();
         session.setTempPhotoFileId(fileId);
 
-        // Fetch direct download link from Telegram
         try {
             GetFile getFileMethod = new GetFile(fileId);
             org.telegram.telegrambots.meta.api.objects.File tgFile = execute(getFileMethod);
@@ -319,16 +423,12 @@ public class SellerBotService extends TelegramLongPollingBot {
         msg.setChatId(chatId.toString());
         msg.setParseMode("Markdown");
         msg.setText("✅ Rasm qabul qilindi!\n\n" +
-                "📝 *2-qadam: Mahsulotning to'liq nomini kiriting.*\n\n" +
-                "Misol: `iPhone 16 Pro Max 256GB` yoki `Samsung 55\" Smart TV` yoki `Artel Kir yuvish mashinasi`:");
+                "📝 *2-qadam: Mahsulot nomini kiriting.*\n\n" +
+                "Misol: `iPhone 16 Pro Max 256GB` yoki `Samsung TV 55\"` yoki `Changyutgich Bosch`:");
         send(msg);
     }
 
     private void handleProductNameInput(Long chatId, String text, SellerSession session) {
-        if ("O'tkazib yuborish".equalsIgnoreCase(text) && session.getTempPhotoUrl() == null) {
-            session.setTempPhotoUrl("https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=600&q=80");
-        }
-
         session.setTempTitle(text);
         session.setState(SellerState.ADD_PRODUCT_PRICE);
 
@@ -345,7 +445,7 @@ public class SellerBotService extends TelegramLongPollingBot {
         if (priceUzs == null || priceUzs <= 0) {
             SendMessage msg = new SendMessage();
             msg.setChatId(chatId.toString());
-            msg.setText("❌ Narx noto'g'ri kiritildi. Iltimos, faqat son kiriting (masalan: `12500000` yoki `1000 USD`):");
+            msg.setText("❌ Narx noto'g'ri kiritildi. Faqat son kiriting (masalan: `12500000` yoki `1000 USD`):");
             send(msg);
             return;
         }
@@ -356,13 +456,24 @@ public class SellerBotService extends TelegramLongPollingBot {
         SendMessage msg = new SendMessage();
         msg.setChatId(chatId.toString());
         msg.setParseMode("Markdown");
-        msg.setText("📄 *4-qadam: Mahsulot haqida qisqacha tavsif / xususiyatlarini kiriting.*\n\n" +
-                "(Agar tavsif kerak bo'lmasa, `Yo'q` deb yozing):");
+        msg.setText("📄 *4-qadam: Mahsulot haqida qisqacha tavsif / izoh kiriting.*\n\n" +
+                "(Kafolat, xususiyatlar yoki 'O'tkazib yuborish' tugmasini bosing):");
+
+        ReplyKeyboardMarkup keyboard = new ReplyKeyboardMarkup();
+        keyboard.setResizeKeyboard(true);
+        List<KeyboardRow> rows = new ArrayList<>();
+        KeyboardRow r = new KeyboardRow();
+        r.add(new KeyboardButton("⏩ O'tkazib yuborish"));
+        r.add(new KeyboardButton("🏠 Asosiy Menyu"));
+        rows.add(r);
+        keyboard.setKeyboard(rows);
+        msg.setReplyMarkup(keyboard);
+
         send(msg);
     }
 
     private void handleProductDescriptionInput(Long chatId, String text, SellerSession session) {
-        if ("Yo'q".equalsIgnoreCase(text) || "none".equalsIgnoreCase(text) || "-".equals(text)) {
+        if ("⏩ O'tkazib yuborish".equalsIgnoreCase(text) || "O'tkazib yuborish".equalsIgnoreCase(text) || "Yo'q".equalsIgnoreCase(text)) {
             session.setTempDescription("Yangi mahsulot. Rasmiy kafolat bilan.");
         } else {
             session.setTempDescription(text);
@@ -370,7 +481,6 @@ public class SellerBotService extends TelegramLongPollingBot {
 
         session.setState(SellerState.ADD_PRODUCT_CONFIRM);
 
-        // Send Preview with Confirmation Inline Buttons
         String caption = "📋 *5-qadam: Mahsulot ma'lumotlarini tasdiqlang:*\n\n" +
                 "🏷️ *Nomi:* `" + session.getTempTitle() + "`\n" +
                 "🏪 *Do'kon:* `" + session.getStore().getName() + "`\n" +
@@ -434,7 +544,7 @@ public class SellerBotService extends TelegramLongPollingBot {
         } else if ("cancel_add_product".equals(data)) {
             session.clearTempProductData();
             session.setState(SellerState.MAIN_MENU);
-            sendMainMenu(chatId, "❌ Mahsulot qo'shish bekor qilindi.", session);
+            sendSellerMainMenu(chatId, "❌ Mahsulot qo'shish bekor qilindi.", session);
         } else if (data.startsWith("update_price_")) {
             Long productId = Long.parseLong(data.replace("update_price_", ""));
             session.setTempSelectedProductId(productId);
@@ -500,7 +610,7 @@ public class SellerBotService extends TelegramLongPollingBot {
             successMsg.setChatId(chatId.toString());
             successMsg.setParseMode("Markdown");
             successMsg.setText("🎉 *Tabriklaymiz!*\n\n" +
-                    "✅ Mahsulot muvaffaqiyatli saqlandi va web-saytingizda hamda Telegram Mini App'da darhol e'lon qilindi!\n\n" +
+                    "✅ Mahsulot muvaffaqiyatli saqlandi va barcha tizimlarda (Web, Mini App) darhol e'lon qilindi!\n\n" +
                     "🆔 *Mahsulot ID:* `" + product.getId() + "`\n" +
                     "🏷️ *Nomi:* `" + product.getTitleUz() + "`\n" +
                     "💰 *Narxi:* `" + formatMoney(offer.getPriceUzs()) + " so'm`");
@@ -518,13 +628,13 @@ public class SellerBotService extends TelegramLongPollingBot {
             successMsg.setReplyMarkup(markup);
 
             send(successMsg);
-            sendMainMenu(chatId, "Asosiy menyu:", session);
+            sendSellerMainMenu(chatId, "Asosiy menyu:", session);
 
         } catch (Exception e) {
             e.printStackTrace();
             SendMessage errMsg = new SendMessage();
             errMsg.setChatId(chatId.toString());
-            errMsg.setText("❌ Xatolik yuz berdi: " + e.getMessage());
+            errMsg.setText("❌ Xatolik: " + e.getMessage());
             send(errMsg);
         }
     }
@@ -608,7 +718,7 @@ public class SellerBotService extends TelegramLongPollingBot {
         if (newPrice == null || newPrice <= 0) {
             SendMessage msg = new SendMessage();
             msg.setChatId(chatId.toString());
-            msg.setText("❌ Noto'g'ri narx. Iltimos, faqat son kiriting:");
+            msg.setText("❌ Noto'g'ri narx. Faqat son kiriting:");
             send(msg);
             return;
         }
@@ -638,7 +748,118 @@ public class SellerBotService extends TelegramLongPollingBot {
 
         session.clearTempProductData();
         session.setState(SellerState.MAIN_MENU);
-        sendMainMenu(chatId, "Asosiy menyu:", session);
+        sendSellerMainMenu(chatId, "Asosiy menyu:", session);
+    }
+
+    // --- Buyer Features ---
+
+    private void handleTopDeals(Long chatId) {
+        List<ProductDto> all = productService.getAllProducts();
+        if (all.isEmpty()) {
+            SendMessage msg = new SendMessage();
+            msg.setChatId(chatId.toString());
+            msg.setText("Hozircha mahsulotlar mavjud emas.");
+            send(msg);
+            return;
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("🔥 *Bugungi Eng Yaxshi Takliflar:*\n\n");
+        int count = 0;
+        for (ProductDto p : all) {
+            count++;
+            sb.append(count).append(". 📱 *").append(p.getTitleUz()).append("*\n")
+                    .append("   💰 Narxi: `").append(formatMoney(p.getLowestPriceUzs())).append(" so'm`\n")
+                    .append("   🏪 Do'kon: `").append(p.getStoreName()).append("`\n\n");
+            if (count >= 5) break;
+        }
+
+        SendMessage msg = new SendMessage();
+        msg.setChatId(chatId.toString());
+        msg.setParseMode("Markdown");
+        msg.setText(sb.toString());
+
+        InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
+        List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+        List<InlineKeyboardButton> r = new ArrayList<>();
+        InlineKeyboardButton btn = new InlineKeyboardButton();
+        btn.setText("🚀 Barchasini Mini App'da Ko'rish");
+        btn.setWebApp(new WebAppInfo(webappUrl));
+        r.add(btn);
+        rows.add(r);
+        markup.setKeyboard(rows);
+        msg.setReplyMarkup(markup);
+
+        send(msg);
+    }
+
+    private void handleBuyerFavorites(Long chatId, org.telegram.telegrambots.meta.api.objects.User tgUser) {
+        if (tgUser == null) return;
+        Optional<com.priceiq.entity.User> userOpt = userRepository.findByTelegramId(tgUser.getId());
+        if (userOpt.isEmpty()) {
+            SendMessage msg = new SendMessage();
+            msg.setChatId(chatId.toString());
+            msg.setText("⭐ Sevimlilar ro'yxatingiz bo'sh.");
+            send(msg);
+            return;
+        }
+
+        List<Favorite> favs = favoriteRepository.findByUserId(userOpt.get().getId());
+        if (favs.isEmpty()) {
+            SendMessage msg = new SendMessage();
+            msg.setChatId(chatId.toString());
+            msg.setText("⭐ Sizda hali saqlangan sevimlilar mavjud emas.");
+            send(msg);
+            return;
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("⭐ *Sizning Sevimli Mahsulotlaringiz:*\n\n");
+        int count = 0;
+        for (Favorite f : favs) {
+            count++;
+            sb.append(count).append(". 📱 *").append(f.getProduct().getTitleUz()).append("*\n\n");
+        }
+
+        SendMessage msg = new SendMessage();
+        msg.setChatId(chatId.toString());
+        msg.setParseMode("Markdown");
+        msg.setText(sb.toString());
+        send(msg);
+    }
+
+    private void handleBuyerAlerts(Long chatId, org.telegram.telegrambots.meta.api.objects.User tgUser) {
+        if (tgUser == null) return;
+        Optional<com.priceiq.entity.User> userOpt = userRepository.findByTelegramId(tgUser.getId());
+        if (userOpt.isEmpty()) {
+            SendMessage msg = new SendMessage();
+            msg.setChatId(chatId.toString());
+            msg.setText("🔔 Sizda faol narx alertlari mavjud emas.");
+            send(msg);
+            return;
+        }
+
+        List<PriceAlert> alerts = priceAlertRepository.findByUserId(userOpt.get().getId());
+        if (alerts.isEmpty()) {
+            SendMessage msg = new SendMessage();
+            msg.setChatId(chatId.toString());
+            msg.setText("🔔 Sizda hozircha narx tushishi xabarnomalari o'rnatilmagan.");
+            send(msg);
+            return;
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("🔔 *Sizning Narx Alertlaringiz:*\n\n");
+        for (PriceAlert a : alerts) {
+            sb.append("• *").append(a.getProduct().getTitleUz()).append("*\n")
+                    .append("  🎯 Maqsadli narx: `").append(formatMoney(a.getTargetPriceUzs())).append(" so'm`\n\n");
+        }
+
+        SendMessage msg = new SendMessage();
+        msg.setChatId(chatId.toString());
+        msg.setParseMode("Markdown");
+        msg.setText(sb.toString());
+        send(msg);
     }
 
     private void handleSupport(Long chatId) {
@@ -680,7 +901,7 @@ public class SellerBotService extends TelegramLongPollingBot {
         } else {
             SendMessage msg = new SendMessage();
             msg.setChatId(chatId.toString());
-            msg.setText("Buyruqni tanlash uchun /menu bosing yoki menyu tugmalaridan foydalaning.");
+            msg.setText("Buyruqni tanlash uchun /menu bosing yoki pastdagi menyu tugmalaridan foydalaning.");
             send(msg);
         }
     }
@@ -694,7 +915,7 @@ public class SellerBotService extends TelegramLongPollingBot {
             if (clean.contains("USD") || clean.contains("$")) {
                 String numStr = clean.replaceAll("[^0-9.]", "");
                 double usd = Double.parseDouble(numStr);
-                return (long) (usd * 12800); // Current USD/UZS rate
+                return (long) (usd * 12800);
             }
             String numStr = clean.replaceAll("[^0-9]", "");
             if (numStr.isEmpty()) return null;
