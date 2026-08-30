@@ -117,15 +117,20 @@ public class SellerBotService extends TelegramLongPollingBot {
         // 2. Handle Text Commands & Navigation
         if (message.hasText()) {
             String text = message.getText().trim();
+            String norm = text.toLowerCase()
+                    .replace("’", "'")
+                    .replace("‘", "'")
+                    .replace("`", "'")
+                    .trim();
 
             // Language trigger commands
-            if ("/language".equalsIgnoreCase(text) || "/til".equalsIgnoreCase(text) || "🌐 Tilni tanlash / Язык".equalsIgnoreCase(text) || "🌐 Tilni o'zgartirish".equalsIgnoreCase(text)) {
+            if (norm.equals("/language") || norm.equals("/til") || norm.contains("tilni") || norm.contains("язык") || norm.contains("til tanlash")) {
                 sendLanguageSelection(chatId);
                 return;
             }
 
             // Global Navigation & Cancellation
-            if ("/start".equalsIgnoreCase(text) || "/menu".equalsIgnoreCase(text) || "🏠 Asosiy Menyu".equalsIgnoreCase(text) || "/cancel".equalsIgnoreCase(text)) {
+            if (norm.equals("/start") || norm.equals("/menu") || norm.contains("asosiy menyu") || norm.contains("главное меню") || norm.equals("/cancel") || norm.contains("bekor qilish") || norm.contains("отмена")) {
                 session.setState(SellerState.MAIN_MENU);
                 session.clearTempProductData();
                 if (session.getStore() != null) {
@@ -136,29 +141,30 @@ public class SellerBotService extends TelegramLongPollingBot {
                 return;
             }
 
-            // --- Seller Actions ---
-            if ("➕ Yangi Mahsulot Qo'shish".equalsIgnoreCase(text) || "➕ Добавить товар".equalsIgnoreCase(text)) {
-                startAddProductFlow(chatId, session, lang);
-                return;
-            }
-
-            if ("📦 Mening Mahsulotlarim".equalsIgnoreCase(text) || "📦 Мои товары".equalsIgnoreCase(text)) {
-                handleListMyProducts(chatId, session, lang);
-                return;
-            }
-
-            if ("✏️ Narxni Yangilash".equalsIgnoreCase(text) || "✏️ Обновить цену".equalsIgnoreCase(text)) {
-                handleStartPriceUpdate(chatId, session, lang);
-                return;
-            }
-
-            if ("📞 Qo'llab-quvvatlash".equalsIgnoreCase(text) || "💬 Yordam / Support".equalsIgnoreCase(text) || "/help".equalsIgnoreCase(text) || "/support".equalsIgnoreCase(text)) {
+            // --- Support & Help ---
+            if (norm.contains("qollab") || norm.contains("qo'llab") || norm.contains("quvvatlash") || norm.contains("yordam") || norm.contains("support") || norm.contains("поддержк") || norm.equals("/help") || norm.equals("/support")) {
                 handleSupport(chatId, lang);
                 return;
             }
 
+            // --- Seller Actions ---
+            if (norm.contains("yangi mahsulot") || norm.contains("mahsulot qo'sh") || norm.contains("добавить товар")) {
+                startAddProductFlow(chatId, session, lang);
+                return;
+            }
+
+            if (norm.contains("mening mahsulot") || norm.contains("мои товары") || norm.contains("mahsulotlarim")) {
+                handleListMyProducts(chatId, session, lang);
+                return;
+            }
+
+            if (norm.contains("narxni yangilash") || norm.contains("обновить цену") || norm.contains("narx yangilash")) {
+                handleStartPriceUpdate(chatId, session, lang);
+                return;
+            }
+
             // --- Buyer Actions ---
-            if ("🔍 Mahsulot Qidirish".equalsIgnoreCase(text) || "🔍 Поиск товаров".equalsIgnoreCase(text)) {
+            if (norm.contains("qidirish") || norm.contains("qidiruv") || norm.contains("поиск товаров") || norm.contains("поиск")) {
                 SendMessage prompt = new SendMessage();
                 prompt.setChatId(chatId.toString());
                 prompt.setParseMode("Markdown");
@@ -169,22 +175,22 @@ public class SellerBotService extends TelegramLongPollingBot {
                 return;
             }
 
-            if ("🔥 Eng Yaxshi Takliflar".equalsIgnoreCase(text) || "🔥 Лучшие предложения".equalsIgnoreCase(text)) {
+            if (norm.contains("takliflar") || norm.contains("taklif") || norm.contains("предложения") || norm.contains("скидк")) {
                 handleTopDeals(chatId, lang);
                 return;
             }
 
-            if ("⭐ Sevimlilarim".equalsIgnoreCase(text) || "⭐ Избранное".equalsIgnoreCase(text)) {
+            if (norm.contains("sevimli") || norm.contains("избранн")) {
                 handleBuyerFavorites(chatId, tgUser, lang);
                 return;
             }
 
-            if ("🔔 Narx Alertlari".equalsIgnoreCase(text) || "🔔 Уведомления о цене".equalsIgnoreCase(text)) {
+            if (norm.contains("alert") || norm.contains("ogohlantirish") || norm.contains("уведомлен")) {
                 handleBuyerAlerts(chatId, tgUser, lang);
                 return;
             }
 
-            if ("⚙️ Sozlamalar".equalsIgnoreCase(text) || "⚙️ Настройки".equalsIgnoreCase(text) || "/settings".equalsIgnoreCase(text)) {
+            if (norm.contains("sozlama") || norm.contains("настройк") || norm.equals("/settings")) {
                 sendSettingsMenu(chatId, tgUser, session, lang);
                 return;
             }
@@ -1154,20 +1160,50 @@ public class SellerBotService extends TelegramLongPollingBot {
         SendMessage msg = new SendMessage();
         msg.setChatId(chatId.toString());
         msg.setParseMode("Markdown");
+
+        InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
+        List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+
+        List<InlineKeyboardButton> r1 = new ArrayList<>();
+        InlineKeyboardButton supportBotBtn = new InlineKeyboardButton();
+        supportBotBtn.setText("ru".equals(lang) ? "🎧 Написать в бот поддержки" : "🎧 Support Botga yozish");
+        supportBotBtn.setUrl("https://t.me/WearFlow_Support_Bot");
+        r1.add(supportBotBtn);
+
+        List<InlineKeyboardButton> r2 = new ArrayList<>();
+        InlineKeyboardButton adminBtn = new InlineKeyboardButton();
+        adminBtn.setText("ru".equals(lang) ? "👤 Написать администратору" : "👤 Administratorga yozish");
+        adminBtn.setUrl("https://t.me/priceiq_admin");
+        r2.add(adminBtn);
+
+        List<InlineKeyboardButton> r3 = new ArrayList<>();
+        InlineKeyboardButton webBtn = new InlineKeyboardButton();
+        webBtn.setText("ru".equals(lang) ? "🌐 Открыть веб-сайт" : "🌐 Veb-saytga kirish");
+        webBtn.setUrl(webappUrl);
+        r3.add(webBtn);
+
+        rows.add(r1);
+        rows.add(r2);
+        rows.add(r3);
+        markup.setKeyboard(rows);
+        msg.setReplyMarkup(markup);
+
         if ("ru".equals(lang)) {
             msg.setText("💬 *Служба поддержки PRICEIQ*\n\n" +
-                    "По любым вопросам или предложениям вы можете связаться с нами:\n\n" +
+                    "Мы всегда готовы помочь вам по любым вопросам, предложениям или жалобам!\n\n" +
                     "👤 *Администратор:* @priceiq_admin\n" +
                     "🎧 *Бот поддержки:* @WearFlow_Support_Bot\n" +
-                    "📞 *Телефон доверия:* +998 71 200 00 00\n" +
-                    "🌐 *Сайт:* [priceiq.uz](https://frontend-three-gamma-ca7l713sls.vercel.app)");
+                    "📞 *Телефон доверия:* `+998 71 200 00 00`\n" +
+                    "🌐 *Веб-сайт:* [priceiq.uz](" + webappUrl + ")\n\n" +
+                    "👇 Нажмите кнопку ниже, чтобы связаться с нами:");
         } else {
             msg.setText("💬 *PRICEIQ Qo'llab-quvvatlash xizmati*\n\n" +
-                    "Savollar, takliflar yoki murojaatlar bo'yicha biz bilan bog'lanishingiz mumkin:\n\n" +
-                    "👤 *Admin:* @priceiq_admin\n" +
+                    "Savollar, takliflar, do'kon ochish yoki muammolar bo'yicha biz bilan bog'lanishingiz mumkin!\n\n" +
+                    "👤 *Administrator:* @priceiq_admin\n" +
                     "🎧 *Support Bot:* @WearFlow_Support_Bot\n" +
-                    "📞 *Ishonch telefoni:* +998 71 200 00 00\n" +
-                    "🌐 *Web:* [priceiq.uz](https://frontend-three-gamma-ca7l713sls.vercel.app)");
+                    "📞 *Ishonch telefoni:* `+998 71 200 00 00`\n" +
+                    "🌐 *Veb-sayt:* [priceiq.uz](" + webappUrl + ")\n\n" +
+                    "👇 Quyidagi tugmalardan birini tanlang:");
         }
         send(msg);
     }
