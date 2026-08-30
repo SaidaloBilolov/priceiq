@@ -554,22 +554,24 @@ public class SellerBotService extends TelegramLongPollingBot {
 
         SendMessage msg = new SendMessage();
         msg.setChatId(chatId.toString());
-        msg.setParseMode("Markdown");
+        msg.setParseMode(null);
 
         if ("ru".equals(lang)) {
-            msg.setText("🎧 *Служба поддержки PRICEIQ*\n\n" +
-                    "✍️ *Напишите ваше сообщение, вопрос или жалобу прямо сюда.*\n" +
+            msg.setText("🎧 PRICEIQ Служба поддержки\n\n" +
+                    "✍️ Напишите ваше сообщение, вопрос или жалобу прямо сюда.\n" +
                     "Вы можете отправить текст, фото, видео или голосовое сообщение.\n\n" +
-                    "Операторы поддержки ответят вам в этом чате!\n\n" +
-                    "📞 *Телефон доверия:* `+998 71 200 00 00`\n" +
-                    "👤 *Администратор:* @priceiq_admin");
+                    "Операторы поддержки ответят вам прямо в этом чате!\n\n" +
+                    "📞 Телефон доверия: +998 71 200 00 00\n" +
+                    "👤 Администратор: @priceiq_admin\n\n" +
+                    "👇 Отправьте ваше сообщение:");
         } else {
-            msg.setText("🎧 *PRICEIQ Qo'llab-quvvatlash xizmati*\n\n" +
-                    "✍️ *Murojaatingiz, savolingiz yoki xabaringizni shu yerga yozib qoldiring.*\n" +
+            msg.setText("🎧 PRICEIQ Qo'llab-quvvatlash xizmati\n\n" +
+                    "✍️ Murojaatingiz, savolingiz yoki xabaringizni shu yerga yozib qoldiring.\n" +
                     "Matn, rasm, video yoki ovozli xabar yuborishingiz mumkin.\n\n" +
                     "Support operatorlarimiz to'g'ridan-to'g'ri ushbu chat orqali javob berishadi!\n\n" +
-                    "📞 *Ishonch telefoni:* `+998 71 200 00 00`\n" +
-                    "👤 *Administrator:* @priceiq_admin");
+                    "📞 Ishonch telefoni: +998 71 200 00 00\n" +
+                    "👤 Administrator: @priceiq_admin\n\n" +
+                    "👇 Xabaringizni yozib yuboring:");
         }
 
         ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
@@ -593,18 +595,18 @@ public class SellerBotService extends TelegramLongPollingBot {
         Optional<Store> st = findActiveStoreForUser(userChatId, phone);
         String roleStr = st.isPresent() ? "Do'kon Sotuvchisi (" + st.get().getName() + ")" : "Xaridor (Buyer)";
 
-        String header = "📩 *Yangi Murojaat! / Новое обращение!*\n" +
-                "👤 *Foydalanuvchi:* " + userName + " (" + userHandle + ")\n" +
-                "🆔 *Chat ID:* `" + userChatId + "`\n" +
-                "📞 *Telefon:* `" + phone + "`\n" +
-                "🎭 *Rol:* " + roleStr + "\n" +
+        String header = "📩 Yangi Murojaat! / Новое обращение!\n" +
+                "👤 Foydalanuvchi: " + userName + " (" + userHandle + ")\n" +
+                "🆔 Chat ID: " + userChatId + "\n" +
+                "📞 Telefon: " + phone + "\n" +
+                "🎭 Rol: " + roleStr + "\n" +
                 "──────────────────\n";
 
         List<SupportOperator> activeOperators = supportOperatorRepository.findByIsActiveTrue();
         Set<Long> targetOperatorChatIds = new HashSet<>();
 
         for (SupportOperator op : activeOperators) {
-            if (op.getTelegramChatId() != null && !op.getTelegramChatId().equals(userChatId)) {
+            if (op.getTelegramChatId() != null) {
                 targetOperatorChatIds.add(op.getTelegramChatId());
             }
         }
@@ -612,7 +614,7 @@ public class SellerBotService extends TelegramLongPollingBot {
         if (adminChatId != null && !adminChatId.isEmpty()) {
             try {
                 Long admId = Long.parseLong(adminChatId.trim());
-                if (!admId.equals(userChatId)) targetOperatorChatIds.add(admId);
+                targetOperatorChatIds.add(admId);
             } catch (Exception ignored) {}
         }
 
@@ -621,40 +623,40 @@ public class SellerBotService extends TelegramLongPollingBot {
                 if (message.hasText()) {
                     SendMessage fwd = new SendMessage();
                     fwd.setChatId(opChatId.toString());
-                    fwd.setParseMode("Markdown");
-                    fwd.setText(header + "💬 *Xabar:* " + message.getText());
+                    fwd.setParseMode(null);
+                    fwd.setText(header + "💬 Xabar: " + message.getText() + "\n\n(Javob berish uchun ushbu xabarga 'Reply' qiling)");
                     Message sent = execute(fwd);
                     operatorMsgToUserChatMap.put(sent.getMessageId(), userChatId);
                 } else if (message.hasPhoto()) {
                     SendPhoto fwd = new SendPhoto();
                     fwd.setChatId(opChatId.toString());
                     fwd.setPhoto(new InputFile(message.getPhoto().get(message.getPhoto().size() - 1).getFileId()));
-                    fwd.setCaption(header + "📷 *Rasm bilan murojaat:* " + (message.getCaption() != null ? message.getCaption() : ""));
-                    fwd.setParseMode("Markdown");
+                    fwd.setCaption(header + "📷 Rasm: " + (message.getCaption() != null ? message.getCaption() : "") + "\n\n(Javob berish uchun ushbu xabarga 'Reply' qiling)");
+                    fwd.setParseMode(null);
                     Message sent = execute(fwd);
                     operatorMsgToUserChatMap.put(sent.getMessageId(), userChatId);
                 } else if (message.hasVideo()) {
                     SendVideo fwd = new SendVideo();
                     fwd.setChatId(opChatId.toString());
                     fwd.setVideo(new InputFile(message.getVideo().getFileId()));
-                    fwd.setCaption(header + "🎥 *Video bilan murojaat:* " + (message.getCaption() != null ? message.getCaption() : ""));
-                    fwd.setParseMode("Markdown");
+                    fwd.setCaption(header + "🎥 Video: " + (message.getCaption() != null ? message.getCaption() : "") + "\n\n(Javob berish uchun ushbu xabarga 'Reply' qiling)");
+                    fwd.setParseMode(null);
                     Message sent = execute(fwd);
                     operatorMsgToUserChatMap.put(sent.getMessageId(), userChatId);
                 } else if (message.hasVoice()) {
                     SendVoice fwd = new SendVoice();
                     fwd.setChatId(opChatId.toString());
                     fwd.setVoice(new InputFile(message.getVoice().getFileId()));
-                    fwd.setCaption(header + "🎤 *Ovozli xabar bilan murojaat*");
-                    fwd.setParseMode("Markdown");
+                    fwd.setCaption(header + "🎤 Ovozli xabar\n\n(Javob berish uchun ushbu xabarga 'Reply' qiling)");
+                    fwd.setParseMode(null);
                     Message sent = execute(fwd);
                     operatorMsgToUserChatMap.put(sent.getMessageId(), userChatId);
                 } else if (message.hasDocument()) {
                     SendDocument fwd = new SendDocument();
                     fwd.setChatId(opChatId.toString());
                     fwd.setDocument(new InputFile(message.getDocument().getFileId()));
-                    fwd.setCaption(header + "📄 *Hujjat bilan murojaat:* " + (message.getCaption() != null ? message.getCaption() : ""));
-                    fwd.setParseMode("Markdown");
+                    fwd.setCaption(header + "📄 Hujjat: " + (message.getCaption() != null ? message.getCaption() : "") + "\n\n(Javob berish uchun ushbu xabarga 'Reply' qiling)");
+                    fwd.setParseMode(null);
                     Message sent = execute(fwd);
                     operatorMsgToUserChatMap.put(sent.getMessageId(), userChatId);
                 }
@@ -667,16 +669,16 @@ public class SellerBotService extends TelegramLongPollingBot {
 
         SendMessage confirmMsg = new SendMessage();
         confirmMsg.setChatId(userChatId.toString());
-        confirmMsg.setParseMode("Markdown");
+        confirmMsg.setParseMode(null);
         confirmMsg.setText("ru".equals(lang) ?
-                "✅ *Ваше обращение успешно отправлено!*\n\nОператоры поддержки уже получили его и ответят вам в ближайшее время." :
-                "✅ *Murojaatingiz muvaffaqiyatli qabul qilindi!*\n\nSupport operatorlarimiz xabaringizni olishdi va tez orada ushbu chat orqali javob berishadi.");
+                "✅ Ваше обращение успешно отправлено!\n\nОператоры поддержки уже получили его и ответят вам прямо в этом чате." :
+                "✅ Murojaatingiz muvaffaqiyatli qabul qilindi!\n\nSupport operatorlarimiz xabaringizni olishdi va tez orada to'g'ridan-to'g'ri ushbu chat orqali javob berishadi.");
         send(confirmMsg);
 
         if (st.isPresent()) {
-            sendSellerMainMenu(userChatId, "Asosiy menyu:", session, lang);
+            sendSellerMainMenu(userChatId, "ru".equals(lang) ? "Главное меню:" : "Asosiy menyu:", session, lang);
         } else {
-            sendBuyerMainMenu(userChatId, "Asosiy menyu:", tgUser, lang);
+            sendBuyerMainMenu(userChatId, "ru".equals(lang) ? "Главное меню:" : "Asosiy menyu:", tgUser, lang);
         }
     }
 
