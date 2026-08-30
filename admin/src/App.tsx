@@ -7,6 +7,7 @@ import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Products } from './pages/Products';
 import { Stores } from './pages/Stores';
+import { SupportOperators } from './pages/SupportOperators';
 import { Alerts } from './pages/Alerts';
 
 const ProtectedLayout: React.FC = () => {
@@ -26,6 +27,7 @@ const ProtectedLayout: React.FC = () => {
             <Route path="/" element={<Dashboard />} />
             <Route path="/products" element={<Products />} />
             <Route path="/stores" element={<Stores />} />
+            <Route path="/operators" element={<SupportOperators />} />
             <Route path="/alerts" element={<Alerts />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Smartphone, Bell, Shield, LogOut, Store } from 'lucide-react';
+import { LayoutDashboard, Smartphone, Bell, Shield, LogOut, Store, Headphones } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export const Sidebar: React.FC = () => {
@@ -10,6 +10,7 @@ export const Sidebar: React.FC = () => {
     { path: '/', label: 'Boshqaruv Paneli', icon: LayoutDashboard },
     { path: '/products', label: 'Mahsulotlar CRUD', icon: Smartphone },
     { path: '/stores', label: 'Do\'konlar & Sotuvchilar', icon: Store },
+    { path: '/operators', label: 'Support Operatorlar', icon: Headphones },
     { path: '/alerts', label: 'Narx Alertlari', icon: Bell }
   ];
 

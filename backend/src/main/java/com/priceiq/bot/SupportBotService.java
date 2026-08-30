@@ -1,6 +1,8 @@
 package com.priceiq.bot;
 
+import com.priceiq.entity.SupportOperator;
 import com.priceiq.entity.User;
+import com.priceiq.repository.SupportOperatorRepository;
 import com.priceiq.repository.UserRepository;
 import com.priceiq.service.UserService;
 import org.springframework.beans.factory.annotation.Value;
@@ -9,7 +11,10 @@ import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.send.*;
 import org.telegram.telegrambots.meta.api.objects.*;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardButton;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import java.util.*;
@@ -31,18 +36,22 @@ public class SupportBotService extends TelegramLongPollingBot {
 
     private final UserRepository userRepository;
     private final UserService userService;
+    private final SupportOperatorRepository supportOperatorRepository;
 
-    // Mapping of Admin Chat message ID -> User Chat ID for replies
-    private final Map<Integer, Long> adminMsgToUserChatMap = new ConcurrentHashMap<>();
+    // Mapping of Operator/Admin Chat message ID -> User Chat ID for replies
+    private final Map<Integer, Long> operatorMsgToUserChatMap = new ConcurrentHashMap<>();
 
     // User language cache
     private final Map<Long, String> userLanguageMap = new ConcurrentHashMap<>();
 
     private static final Pattern CHAT_ID_PATTERN = Pattern.compile("(?:Chat ID|User ID):\\s*(\\d+)", Pattern.CASE_INSENSITIVE);
 
-    public SupportBotService(UserRepository userRepository, UserService userService) {
+    public SupportBotService(UserRepository userRepository,
+                             UserService userService,
+                             SupportOperatorRepository supportOperatorRepository) {
         this.userRepository = userRepository;
         this.userService = userService;
+        this.supportOperatorRepository = supportOperatorRepository;
     }
 
     @Override
@@ -71,13 +80,22 @@ public class SupportBotService extends TelegramLongPollingBot {
         Long chatId = message.getChatId();
         org.telegram.telegrambots.meta.api.objects.User tgUser = message.getFrom();
 
-        // 2. Check if message is from Admin Chat responding to a user
-        if (isAdminChat(chatId)) {
-            handleAdminMessage(message);
+        // 2. Check if message is from an Operator or Admin responding to a user query
+        Optional<SupportOperator> operatorOpt = supportOperatorRepository.findByTelegramChatId(chatId);
+        if (operatorOpt.isPresent() || isAdminChat(chatId)) {
+            if (message.getReplyToMessage() != null) {
+                handleOperatorReply(message, operatorOpt.orElse(null));
+                return;
+            }
+        }
+
+        // 3. Handle Contact Sharing (Check for Operator Authorization or User Phone Sync)
+        if (message.hasContact()) {
+            handleContactReceived(chatId, message.getContact(), tgUser);
             return;
         }
 
-        // 3. User Flow
+        // 4. User Flow
         if (tgUser != null) {
             userService.getOrCreateUser(tgUser.getId(), tgUser.getFirstName(), tgUser.getUserName(), tgUser.getLanguageCode());
         }
@@ -97,11 +115,53 @@ public class SupportBotService extends TelegramLongPollingBot {
             }
         }
 
-        // Forward user message / media to Admin
-        forwardUserInquiryToAdmin(message, tgUser, userLang);
+        // Forward user message / media to ALL active Support Operators and Admin
+        forwardUserInquiryToOperators(message, tgUser, userLang);
     }
 
-    // --- Language Setup ---
+    // --- Language & Operator Authorization ---
+
+    private void handleContactReceived(Long chatId, Contact contact, org.telegram.telegrambots.meta.api.objects.User tgUser) {
+        String phone = contact.getPhoneNumber();
+        if (phone == null) phone = "";
+        String cleanPhone = phone.replaceAll("[^0-9]", "");
+
+        // Check if phone number belongs to a Support Operator
+        Optional<SupportOperator> opOpt = supportOperatorRepository.findByCleanPhone(cleanPhone);
+        if (opOpt.isEmpty()) {
+            opOpt = supportOperatorRepository.findByPhoneNumber("+" + cleanPhone);
+        }
+        if (opOpt.isEmpty()) {
+            opOpt = supportOperatorRepository.findByPhoneNumber(phone);
+        }
+
+        if (opOpt.isPresent()) {
+            SupportOperator op = opOpt.get();
+            op.setTelegramChatId(chatId);
+            op.setIsActive(true);
+            supportOperatorRepository.save(op);
+
+            SendMessage msg = new SendMessage();
+            msg.setChatId(chatId.toString());
+            msg.setParseMode("Markdown");
+            msg.setText("🎧 *Siz Support Operator sifatida tizimga kirdingiz!*\n\n" +
+                    "👤 *Operator:* `" + op.getFullName() + "`\n" +
+                    "📞 *Telefon:* `" + op.getPhoneNumber() + "`\n\n" +
+                    "Foydalanuvchilardan kelgan murojaatlar ushbu chatga keladi. Javob berish uchun xabarga *'Reply' (Javob berish)* qiling.");
+            send(msg);
+            return;
+        }
+
+        // Regular user phone sync
+        if (tgUser != null) {
+            userService.updatePhoneNumber(tgUser.getId(), phone.startsWith("+") ? phone : "+" + phone, "uz");
+        }
+
+        SendMessage msg = new SendMessage();
+        msg.setChatId(chatId.toString());
+        msg.setText("✅ Telefon raqamingiz qabul qilindi. Savolingizni yozib qoldirishingiz mumkin:");
+        send(msg);
+    }
 
     private void sendLanguageSelection(Long chatId) {
         SendMessage msg = new SendMessage();
@@ -177,12 +237,12 @@ public class SupportBotService extends TelegramLongPollingBot {
         if ("ru".equals(lang)) {
             msg.setText("👋 *Здравствуйте!*\n\n" +
                     "Добро пожаловать в службу поддержки *PRICEIQ / WearFlow*.\n\n" +
-                    "Опишите ваш вопрос или проблему прямо в этом чате. Наши специалисты ответят вам в ближайшее время.\n\n" +
+                    "Опишите ваш вопрос или проблему прямо в этом чате. Наши операторы ответят вам в ближайшее время.\n\n" +
                     "💡 *Рекомендация:* Чтобы мы быстрее разобрались в ситуации, вы можете отправить скриншот, фото или видео (это не обязательно).");
         } else {
             msg.setText("👋 *Assalomu alaykum!*\n\n" +
                     "*PRICEIQ / WearFlow* qo'llab-quvvatlash xizmatiga xush kelibsiz.\n\n" +
-                    "Savolingiz yoki murojaatingizni to'g'ridan-to'g'ri shu chatga yozib qoldiring. Mutaxassislarimiz tez orada sizga javob berishadi.\n\n" +
+                    "Savolingiz yoki murojaatingizni to'g'ridan-to'g'ri shu chatga yozib qoldiring. Operatorlarimiz tez orada sizga javob berishadi.\n\n" +
                     "💡 *Tavsiya:* Masalani tezroq hal qilish uchun skrinshot, rasm yoki video yuborishingiz mumkin (bu majburiy emas).");
         }
         send(msg);
@@ -192,9 +252,9 @@ public class SupportBotService extends TelegramLongPollingBot {
         sendWelcome(chatId, lang);
     }
 
-    // --- Multi-Media Forwarding (User -> Admin) ---
+    // --- Dynamic Multi-Media Forwarding to Operators ---
 
-    private void forwardUserInquiryToAdmin(Message message, org.telegram.telegrambots.meta.api.objects.User tgUser, String userLang) {
+    private void forwardUserInquiryToOperators(Message message, org.telegram.telegrambots.meta.api.objects.User tgUser, String userLang) {
         Long userChatId = message.getChatId();
         String name = tgUser != null ? tgUser.getFirstName() : "Foydalanuvchi";
         String username = tgUser != null && tgUser.getUserName() != null ? "@" + tgUser.getUserName() : "mavjud emas";
@@ -205,141 +265,123 @@ public class SupportBotService extends TelegramLongPollingBot {
                 "🆔 *Chat ID:* `" + userChatId + "`\n" +
                 "📞 *Telefon:* `" + phone + "`\n";
 
-        // 1. Text Message
+        // Collect all active operator chat IDs + Admin Chat ID
+        Set<String> recipientChatIds = new HashSet<>();
+        if (adminChatId != null && !adminChatId.trim().isEmpty()) {
+            recipientChatIds.add(adminChatId.trim());
+        }
+
+        List<SupportOperator> activeOps = supportOperatorRepository.findByIsActiveTrue();
+        for (SupportOperator op : activeOps) {
+            if (op.getTelegramChatId() != null) {
+                recipientChatIds.add(op.getTelegramChatId().toString());
+            }
+        }
+
+        for (String targetChat : recipientChatIds) {
+            try {
+                // 1. Text Message
+                if (message.hasText()) {
+                    String fullText = header + "💬 *Xabar:* " + message.getText();
+                    SendMessage toOp = new SendMessage();
+                    toOp.setChatId(targetChat);
+                    toOp.setText(fullText);
+                    toOp.setParseMode("Markdown");
+                    Message sent = execute(toOp);
+                    if (sent != null) {
+                        operatorMsgToUserChatMap.put(sent.getMessageId(), userChatId);
+                    }
+                }
+                // 2. Photo Message
+                else if (message.hasPhoto()) {
+                    List<PhotoSize> photos = message.getPhoto();
+                    String fileId = photos.get(photos.size() - 1).getFileId();
+                    String caption = header + (message.getCaption() != null ? "💬 *Izoh:* " + message.getCaption() : "");
+
+                    SendPhoto toOp = new SendPhoto();
+                    toOp.setChatId(targetChat);
+                    toOp.setPhoto(new InputFile(fileId));
+                    toOp.setCaption(caption);
+                    toOp.setParseMode("Markdown");
+                    Message sent = execute(toOp);
+                    if (sent != null) {
+                        operatorMsgToUserChatMap.put(sent.getMessageId(), userChatId);
+                    }
+                }
+                // 3. Video Message
+                else if (message.hasVideo()) {
+                    String fileId = message.getVideo().getFileId();
+                    String caption = header + (message.getCaption() != null ? "💬 *Izoh:* " + message.getCaption() : "");
+
+                    SendVideo toOp = new SendVideo();
+                    toOp.setChatId(targetChat);
+                    toOp.setVideo(new InputFile(fileId));
+                    toOp.setCaption(caption);
+                    toOp.setParseMode("Markdown");
+                    Message sent = execute(toOp);
+                    if (sent != null) {
+                        operatorMsgToUserChatMap.put(sent.getMessageId(), userChatId);
+                    }
+                }
+                // 4. Video Note (Kruglyash)
+                else if (message.hasVideoNote()) {
+                    String fileId = message.getVideoNote().getFileId();
+
+                    SendVideoNote toOp = new SendVideoNote();
+                    toOp.setChatId(targetChat);
+                    toOp.setVideoNote(new InputFile(fileId));
+                    Message sent = execute(toOp);
+                    if (sent != null) {
+                        operatorMsgToUserChatMap.put(sent.getMessageId(), userChatId);
+                    }
+
+                    SendMessage meta = new SendMessage();
+                    meta.setChatId(targetChat);
+                    meta.setText(header + "📹 *Video xabar (kruglyash) yuborildi.*");
+                    meta.setParseMode("Markdown");
+                    Message metaSent = execute(meta);
+                    if (metaSent != null) {
+                        operatorMsgToUserChatMap.put(metaSent.getMessageId(), userChatId);
+                    }
+                }
+                // 5. Document Message
+                else if (message.hasDocument()) {
+                    String fileId = message.getDocument().getFileId();
+                    String caption = header + (message.getCaption() != null ? "💬 *Izoh:* " + message.getCaption() : "");
+
+                    SendDocument toOp = new SendDocument();
+                    toOp.setChatId(targetChat);
+                    toOp.setDocument(new InputFile(fileId));
+                    toOp.setCaption(caption);
+                    toOp.setParseMode("Markdown");
+                    Message sent = execute(toOp);
+                    if (sent != null) {
+                        operatorMsgToUserChatMap.put(sent.getMessageId(), userChatId);
+                    }
+                }
+                // 6. Voice Message
+                else if (message.hasVoice()) {
+                    String fileId = message.getVoice().getFileId();
+
+                    SendVoice toOp = new SendVoice();
+                    toOp.setChatId(targetChat);
+                    toOp.setVoice(new InputFile(fileId));
+                    toOp.setCaption(header + (message.getCaption() != null ? "💬 *Izoh:* " + message.getCaption() : ""));
+                    toOp.setParseMode("Markdown");
+                    Message sent = execute(toOp);
+                    if (sent != null) {
+                        operatorMsgToUserChatMap.put(sent.getMessageId(), userChatId);
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        // Soft recommendation notice to user
         if (message.hasText()) {
-            String fullText = header + "💬 *Xabar:* " + message.getText();
-            SendMessage toAdmin = new SendMessage();
-            toAdmin.setChatId(adminChatId);
-            toAdmin.setText(fullText);
-            toAdmin.setParseMode("Markdown");
-            Message sent = send(toAdmin);
-            if (sent != null) {
-                adminMsgToUserChatMap.put(sent.getMessageId(), userChatId);
-            }
-
-            // Soft recommendation reply to user
             sendSoftRecommendationNotice(userChatId, userLang);
-            return;
-        }
-
-        // 2. Photo Message
-        if (message.hasPhoto()) {
-            List<PhotoSize> photos = message.getPhoto();
-            String fileId = photos.get(photos.size() - 1).getFileId();
-            String caption = header + (message.getCaption() != null ? "💬 *Izoh:* " + message.getCaption() : "");
-
-            SendPhoto toAdmin = new SendPhoto();
-            toAdmin.setChatId(adminChatId);
-            toAdmin.setPhoto(new InputFile(fileId));
-            toAdmin.setCaption(caption);
-            toAdmin.setParseMode("Markdown");
-            try {
-                Message sent = execute(toAdmin);
-                if (sent != null) {
-                    adminMsgToUserChatMap.put(sent.getMessageId(), userChatId);
-                }
-            } catch (TelegramApiException e) {
-                e.printStackTrace();
-            }
-
-            sendMediaReceivedNotice(userChatId, userLang);
-            return;
-        }
-
-        // 3. Video Message
-        if (message.hasVideo()) {
-            String fileId = message.getVideo().getFileId();
-            String caption = header + (message.getCaption() != null ? "💬 *Izoh:* " + message.getCaption() : "");
-
-            SendVideo toAdmin = new SendVideo();
-            toAdmin.setChatId(adminChatId);
-            toAdmin.setVideo(new InputFile(fileId));
-            toAdmin.setCaption(caption);
-            toAdmin.setParseMode("Markdown");
-            try {
-                Message sent = execute(toAdmin);
-                if (sent != null) {
-                    adminMsgToUserChatMap.put(sent.getMessageId(), userChatId);
-                }
-            } catch (TelegramApiException e) {
-                e.printStackTrace();
-            }
-
-            sendMediaReceivedNotice(userChatId, userLang);
-            return;
-        }
-
-        // 4. Video Note (Kruglyash)
-        if (message.hasVideoNote()) {
-            String fileId = message.getVideoNote().getFileId();
-
-            SendVideoNote toAdmin = new SendVideoNote();
-            toAdmin.setChatId(adminChatId);
-            toAdmin.setVideoNote(new InputFile(fileId));
-            try {
-                Message sent = execute(toAdmin);
-                if (sent != null) {
-                    adminMsgToUserChatMap.put(sent.getMessageId(), userChatId);
-                }
-                // Send metadata description
-                SendMessage meta = new SendMessage();
-                meta.setChatId(adminChatId);
-                meta.setText(header + "📹 *Video xabar (kruglyash) yuborildi.*");
-                meta.setParseMode("Markdown");
-                Message metaSent = execute(meta);
-                if (metaSent != null) {
-                    adminMsgToUserChatMap.put(metaSent.getMessageId(), userChatId);
-                }
-            } catch (TelegramApiException e) {
-                e.printStackTrace();
-            }
-
-            sendMediaReceivedNotice(userChatId, userLang);
-            return;
-        }
-
-        // 5. Document Message
-        if (message.hasDocument()) {
-            String fileId = message.getDocument().getFileId();
-            String caption = header + (message.getCaption() != null ? "💬 *Izoh:* " + message.getCaption() : "");
-
-            SendDocument toAdmin = new SendDocument();
-            toAdmin.setChatId(adminChatId);
-            toAdmin.setDocument(new InputFile(fileId));
-            toAdmin.setCaption(caption);
-            toAdmin.setParseMode("Markdown");
-            try {
-                Message sent = execute(toAdmin);
-                if (sent != null) {
-                    adminMsgToUserChatMap.put(sent.getMessageId(), userChatId);
-                }
-            } catch (TelegramApiException e) {
-                e.printStackTrace();
-            }
-
-            sendMediaReceivedNotice(userChatId, userLang);
-            return;
-        }
-
-        // 6. Voice Message
-        if (message.hasVoice()) {
-            String fileId = message.getVoice().getFileId();
-            String caption = header + (message.getCaption() != null ? "💬 *Izoh:* " + message.getCaption() : "");
-
-            SendVoice toAdmin = new SendVoice();
-            toAdmin.setChatId(adminChatId);
-            toAdmin.setVoice(new InputFile(fileId));
-            toAdmin.setCaption(caption);
-            toAdmin.setParseMode("Markdown");
-            try {
-                Message sent = execute(toAdmin);
-                if (sent != null) {
-                    adminMsgToUserChatMap.put(sent.getMessageId(), userChatId);
-                }
-            } catch (TelegramApiException e) {
-                e.printStackTrace();
-            }
-
+        } else {
             sendMediaReceivedNotice(userChatId, userLang);
         }
     }
@@ -367,34 +409,35 @@ public class SupportBotService extends TelegramLongPollingBot {
         msg.setParseMode("Markdown");
 
         if ("ru".equals(lang)) {
-            msg.setText("✅ *Ваш файл принят и передан специалисту.* Скоро мы вам ответим!");
+            msg.setText("✅ *Ваш файл принят и передан операторам.* Скоро мы вам ответим!");
         } else {
-            msg.setText("✅ *Faylingiz qabul qilindi va mutaxassisga yetkazildi.* Tez orada javob qaytaramiz!");
+            msg.setText("✅ *Faylingiz qabul qilindi va operatorlarga yetkazildi.* Tez orada javob qaytaramiz!");
         }
         send(msg);
     }
 
-    // --- Admin Reply Mapping (Admin -> User) ---
+    // --- Operator Reply Routing (Operator -> User) ---
 
-    private void handleAdminMessage(Message message) {
+    private void handleOperatorReply(Message message, SupportOperator operator) {
         Message replyTo = message.getReplyToMessage();
-        if (replyTo == null) {
-            return;
-        }
+        if (replyTo == null) return;
 
         Long targetUserChatId = extractTargetChatId(replyTo);
         if (targetUserChatId == null) {
             SendMessage warn = new SendMessage();
-            warn.setChatId(adminChatId);
+            warn.setChatId(message.getChatId().toString());
             warn.setText("⚠️ Foydalanuvchi Chat ID si aniqlanmadi. Iltimos, xabarga to'g'ridan-to'g'ri 'Reply' qiling.");
             send(warn);
             return;
         }
 
+        String opName = operator != null ? operator.getFullName() : "Administrator";
         String userLang = userLanguageMap.getOrDefault(targetUserChatId, "uz");
-        String prefix = "ru".equals(userLang) ? "👨‍💻 *Ответ службы поддержки:*\n\n" : "👨‍💻 *Qo'llab-quvvatlash xizmati javobi:*\n\n";
+        String prefix = "ru".equals(userLang) ?
+                "👨‍💻 *Ответ оператора (" + opName + "):*\n\n" :
+                "👨‍💻 *Qo'llab-quvvatlash xizmati javobi (" + opName + "):*\n\n";
 
-        // Forward Admin Text Reply
+        // Forward Operator Response to User
         if (message.hasText()) {
             SendMessage toUser = new SendMessage();
             toUser.setChatId(targetUserChatId.toString());
@@ -433,20 +476,18 @@ public class SupportBotService extends TelegramLongPollingBot {
             try { execute(toUser); } catch (Exception e) {}
         }
 
-        // Confirmation to Admin
-        SendMessage adminConfirm = new SendMessage();
-        adminConfirm.setChatId(adminChatId);
-        adminConfirm.setText("✅ Javobingiz foydalanuvchiga (Chat ID: " + targetUserChatId + ") yetkazildi!");
-        send(adminConfirm);
+        // Confirmation to Operator
+        SendMessage opConfirm = new SendMessage();
+        opConfirm.setChatId(message.getChatId().toString());
+        opConfirm.setText("✅ Javobingiz foydalanuvchiga (Chat ID: " + targetUserChatId + ") yetkazildi!");
+        send(opConfirm);
     }
 
     private Long extractTargetChatId(Message replyTo) {
-        // Check in-memory map first
-        if (adminMsgToUserChatMap.containsKey(replyTo.getMessageId())) {
-            return adminMsgToUserChatMap.get(replyTo.getMessageId());
+        if (operatorMsgToUserChatMap.containsKey(replyTo.getMessageId())) {
+            return operatorMsgToUserChatMap.get(replyTo.getMessageId());
         }
 
-        // Fallback: parse from text / caption
         String text = replyTo.hasText() ? replyTo.getText() : (replyTo.getCaption() != null ? replyTo.getCaption() : "");
         Matcher matcher = CHAT_ID_PATTERN.matcher(text);
         if (matcher.find()) {

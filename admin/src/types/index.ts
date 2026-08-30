@@ -68,3 +68,12 @@ export interface PriceAlert {
   isActive: boolean;
   createdAt: string;
 }
+
+export interface SupportOperator {
+  id: number;
+  fullName: string;
+  phoneNumber: string;
+  telegramChatId?: number;
+  isActive: boolean;
+  createdAt?: string;
+}

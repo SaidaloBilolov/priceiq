@@ -1,4 +1,4 @@
-import { Product, Category, PriceAlert, Store } from '../types';
+import { Product, Category, PriceAlert, Store, SupportOperator } from '../types';
 
 export const getApiBaseUrl = (): string => {
   const customUrl = localStorage.getItem('priceiq_custom_api_url');
@@ -212,6 +212,55 @@ export const api = {
     const baseUrl = getApiBaseUrl();
     try {
       await fetch(`${baseUrl}/stores/${id}`, { method: 'DELETE' });
+    } catch (err) {}
+  },
+
+  // Support Operators Management
+  async getSupportOperators(): Promise<SupportOperator[]> {
+    const baseUrl = getApiBaseUrl();
+    try {
+      const res = await fetch(`${baseUrl}/admin/support-operators`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) return data;
+      }
+    } catch (err) {}
+    return [
+      { id: 1, fullName: 'Asosiy Administrator (Super Admin)', phoneNumber: '+998956233923', telegramChatId: 99887766, isActive: true, createdAt: '2026-08-30' },
+      { id: 2, fullName: 'Operator Nodira', phoneNumber: '+998901234567', isActive: true, createdAt: '2026-08-30' }
+    ];
+  },
+
+  async createSupportOperator(operatorData: Partial<SupportOperator>): Promise<SupportOperator> {
+    const baseUrl = getApiBaseUrl();
+    try {
+      const res = await fetch(`${baseUrl}/admin/support-operators`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(operatorData)
+      });
+      if (res.ok) return res.json();
+    } catch (err) {}
+    return { id: Date.now(), fullName: operatorData.fullName || 'Operator', phoneNumber: operatorData.phoneNumber || '+998', isActive: true, ...operatorData };
+  },
+
+  async updateSupportOperator(id: number, operatorData: Partial<SupportOperator>): Promise<SupportOperator> {
+    const baseUrl = getApiBaseUrl();
+    try {
+      const res = await fetch(`${baseUrl}/admin/support-operators/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(operatorData)
+      });
+      if (res.ok) return res.json();
+    } catch (err) {}
+    return { id, fullName: operatorData.fullName || 'Operator', phoneNumber: operatorData.phoneNumber || '+998', isActive: true, ...operatorData };
+  },
+
+  async deleteSupportOperator(id: number): Promise<void> {
+    const baseUrl = getApiBaseUrl();
+    try {
+      await fetch(`${baseUrl}/admin/support-operators/${id}`, { method: 'DELETE' });
     } catch (err) {}
   },
 
