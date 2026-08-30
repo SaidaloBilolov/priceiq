@@ -47,6 +47,7 @@ public class SellerBotService extends TelegramLongPollingBot {
     private final UserRepository userRepository;
     private final FavoriteRepository favoriteRepository;
     private final PriceAlertRepository priceAlertRepository;
+    private final SupportOperatorRepository supportOperatorRepository;
     private final UserService userService;
     private final ProductService productService;
 
@@ -62,6 +63,7 @@ public class SellerBotService extends TelegramLongPollingBot {
                             UserRepository userRepository,
                             FavoriteRepository favoriteRepository,
                             PriceAlertRepository priceAlertRepository,
+                            SupportOperatorRepository supportOperatorRepository,
                             UserService userService,
                             ProductService productService) {
         this.productRepository = productRepository;
@@ -72,6 +74,7 @@ public class SellerBotService extends TelegramLongPollingBot {
         this.userRepository = userRepository;
         this.favoriteRepository = favoriteRepository;
         this.priceAlertRepository = priceAlertRepository;
+        this.supportOperatorRepository = supportOperatorRepository;
         this.userService = userService;
         this.productService = productService;
     }
@@ -133,11 +136,7 @@ public class SellerBotService extends TelegramLongPollingBot {
             if (norm.equals("/start") || norm.equals("/menu") || norm.contains("asosiy menyu") || norm.contains("главное меню") || norm.equals("/cancel") || norm.contains("bekor qilish") || norm.contains("отмена")) {
                 session.setState(SellerState.MAIN_MENU);
                 session.clearTempProductData();
-                if (session.getStore() != null) {
-                    sendSellerMainMenu(chatId, "ru".equals(lang) ? "Главное меню:" : "Asosiy menyu:", session, lang);
-                } else {
-                    handleStart(chatId, session, tgUser, lang);
-                }
+                handleStart(chatId, session, tgUser, lang);
                 return;
             }
 
@@ -265,13 +264,60 @@ public class SellerBotService extends TelegramLongPollingBot {
         });
     }
 
+    // --- Dynamic Store and Operator Lookup ---
+
+    private Optional<Store> findActiveStoreForUser(Long chatId, String phone) {
+        Optional<Store> storeOpt = storeRepository.findByOwnerChatId(chatId);
+        if (storeOpt.isEmpty() && phone != null) {
+            String clean = phone.replaceAll("[^0-9]", "");
+            storeOpt = storeRepository.findByCleanPhone(clean);
+            if (storeOpt.isEmpty()) {
+                storeOpt = storeRepository.findByOwnerPhone("+" + clean);
+            }
+            if (storeOpt.isEmpty()) {
+                storeOpt = storeRepository.findByOwnerPhone(phone);
+            }
+            // If found by phone, link chatId
+            storeOpt.ifPresent(s -> {
+                s.setOwnerChatId(chatId);
+                storeRepository.save(s);
+            });
+        }
+        return storeOpt;
+    }
+
+    private Optional<SupportOperator> findActiveOperatorForUser(Long chatId, String phone) {
+        Optional<SupportOperator> opOpt = supportOperatorRepository.findByTelegramChatId(chatId);
+        if (opOpt.isEmpty() && phone != null) {
+            String clean = phone.replaceAll("[^0-9]", "");
+            opOpt = supportOperatorRepository.findByCleanPhone(clean);
+            if (opOpt.isEmpty()) {
+                opOpt = supportOperatorRepository.findByPhoneNumber("+" + clean);
+            }
+            if (opOpt.isEmpty()) {
+                opOpt = supportOperatorRepository.findByPhoneNumber(phone);
+            }
+            opOpt.ifPresent(op -> {
+                op.setTelegramChatId(chatId);
+                op.setIsActive(true);
+                supportOperatorRepository.save(op);
+            });
+        }
+        return opOpt;
+    }
+
     // --- Authentication & Start ---
 
     private void handleStart(Long chatId, SellerSession session, org.telegram.telegrambots.meta.api.objects.User tgUser, String lang) {
         String name = tgUser != null && tgUser.getFirstName() != null ? tgUser.getFirstName() : "Foydalanuvchi";
+        String phone = session.getPhoneNumber();
+        if (phone == null && tgUser != null) {
+            userRepository.findByTelegramId(tgUser.getId()).ifPresent(u -> session.setPhoneNumber(u.getPhoneNumber()));
+            phone = session.getPhoneNumber();
+        }
 
-        // Check if user is already a registered Store Owner
-        Optional<Store> existingStore = storeRepository.findByOwnerChatId(chatId);
+        // 1. Dynamic check if user is a Store Owner
+        Optional<Store> existingStore = findActiveStoreForUser(chatId, phone);
         if (existingStore.isPresent()) {
             session.setStore(existingStore.get());
             session.setPhoneNumber(existingStore.get().getOwnerPhone());
@@ -281,23 +327,33 @@ public class SellerBotService extends TelegramLongPollingBot {
                     "👋 *Xush kelibsiz, " + name + "!*\n\n🏪 Do'koningiz: *" + existingStore.get().getName() + "*\n\nQuyidagi menyu orqali mahsulotlaringizni boshqaring:";
             sendSellerMainMenu(chatId, welcomeMsg, session, lang);
             return;
+        } else {
+            session.setStore(null);
         }
 
-        // Check if user has already shared their phone number before
-        if (tgUser != null) {
-            Optional<com.priceiq.entity.User> dbUser = userRepository.findByTelegramId(tgUser.getId());
-            if (dbUser.isPresent() && dbUser.get().getPhoneNumber() != null && !dbUser.get().getPhoneNumber().isEmpty()) {
-                session.setPhoneNumber(dbUser.get().getPhoneNumber());
-                session.setState(SellerState.MAIN_MENU);
-                String welcomeBuyer = "ru".equals(lang) ?
-                        "👋 *Здравствуйте, " + name + "!*\n\nДобро пожаловать в режим покупателя PRICEIQ. Вы можете искать и сравнивать лучшие цены:" :
-                        "👋 *Assalomu alaykum, " + name + "!*\n\nPRICEIQ Xaridor rejimiga xush kelibsiz. Eng qulay narxlarni qidirishingiz va solishtirishingiz mumkin:";
-                sendBuyerMainMenu(chatId, welcomeBuyer, tgUser, lang);
-                return;
-            }
+        // 2. Dynamic check if user is a Support Operator
+        Optional<SupportOperator> existingOp = findActiveOperatorForUser(chatId, phone);
+        if (existingOp.isPresent()) {
+            session.setPhoneNumber(existingOp.get().getPhoneNumber());
+            session.setState(SellerState.MAIN_MENU);
+            String welcomeOp = "ru".equals(lang) ?
+                    "🎧 *Здравствуйте, " + name + "!*\n\nВы авторизованы как *Support Оператор* (" + existingOp.get().getFullName() + "). Обращения пользователей будут приходить в этот чат:" :
+                    "🎧 *Assalomu alaykum, " + name + "!*\n\nSiz *Support Operator* (" + existingOp.get().getFullName() + ") sifatida tizimdasiz. Mijozlar murojaatlari ushbu chatga keladi:";
+            sendBuyerMainMenu(chatId, welcomeOp, tgUser, lang);
+            return;
         }
 
-        // Prompt for Contact
+        // 3. Check if user already shared phone before
+        if (phone != null && !phone.isEmpty()) {
+            session.setState(SellerState.MAIN_MENU);
+            String welcomeBuyer = "ru".equals(lang) ?
+                    "👋 *Здравствуйте, " + name + "!*\n\nДобро пожаловать в режим покупателя PRICEIQ. Вы можете искать и сравнивать лучшие цены:" :
+                    "👋 *Assalomu alaykum, " + name + "!*\n\nPRICEIQ Xaridor rejimiga xush kelibsiz. Eng qulay narxlarni qidirishingiz va solishtirishingiz mumkin:";
+            sendBuyerMainMenu(chatId, welcomeBuyer, tgUser, lang);
+            return;
+        }
+
+        // 4. Prompt for Contact
         session.setState(SellerState.AWAITING_CONTACT);
         SendMessage msg = new SendMessage();
         msg.setChatId(chatId.toString());
@@ -306,11 +362,11 @@ public class SellerBotService extends TelegramLongPollingBot {
         if ("ru".equals(lang)) {
             msg.setText("👋 *Здравствуйте, " + name + "!*\n\n" +
                     "🛒 *PRICEIQ* — Умная платформа сравнения цен во всех магазинах Узбекистана.\n\n" +
-                    "Чтобы подтвердить магазин (для продавцов) или привязать профиль (для покупателей), нажмите кнопку *📱 Отправить номер телефона* ниже:");
+                    "Чтобы подтвердить магазин (для продавцов), активировать профиль оператора или войти как покупатель, нажмите кнопку *📱 Отправить номер телефона* ниже:");
         } else {
             msg.setText("👋 *Assalomu alaykum, " + name + "!*\n\n" +
                     "🛒 *PRICEIQ* — O'zbekistondagi barcha do'konlar narxlarini solishtiruvchi aqlli platforma.\n\n" +
-                    "Do'koningizni tasdiqlash (sotuvchilar uchun) yoki shaxsiy profilingizni ulash uchun pastdagi *📱 Telefon Raqamni Yuborish* tugmasini bosing:");
+                    "Do'koningizni tasdiqlash (sotuvchilar uchun), operator hisobini faollashtirish yoki shaxsiy profilingizni ulash uchun pastdagi *📱 Telefon Raqamni Yuborish* tugmasini bosing:");
         }
 
         ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
@@ -339,6 +395,40 @@ public class SellerBotService extends TelegramLongPollingBot {
             userService.updatePhoneNumber(tgUser.getId(), phone.startsWith("+") ? phone : "+" + phone, lang);
         }
 
+        session.setPhoneNumber(phone);
+
+        // 1. Check if phone belongs to Support Operator
+        Optional<SupportOperator> opOpt = supportOperatorRepository.findByCleanPhone(cleanPhone);
+        if (opOpt.isEmpty()) {
+            opOpt = supportOperatorRepository.findByPhoneNumber("+" + cleanPhone);
+        }
+        if (opOpt.isEmpty()) {
+            opOpt = supportOperatorRepository.findByPhoneNumber(phone);
+        }
+
+        if (opOpt.isPresent()) {
+            SupportOperator op = opOpt.get();
+            op.setTelegramChatId(chatId);
+            op.setIsActive(true);
+            supportOperatorRepository.save(op);
+
+            session.setState(SellerState.MAIN_MENU);
+
+            String text = "ru".equals(lang) ?
+                    "🎧 *Вы успешно авторизовались как Support Оператор!*\n\n" +
+                            "👤 *Оператор:* `" + op.getFullName() + "`\n" +
+                            "📞 *Телефон:* `" + op.getPhoneNumber() + "`\n\n" +
+                            "Все обращения пользователей будут поступать в этот чат. Чтобы ответить, используйте функцию 'Reply'." :
+                    "🎧 *Siz Support Operator sifatida muvaffaqiyatli tizimga kirdingiz!*\n\n" +
+                            "👤 *Operator:* `" + op.getFullName() + "`\n" +
+                            "📞 *Telefon:* `" + op.getPhoneNumber() + "`\n\n" +
+                            "Foydalanuvchilardan kelgan murojaatlar ushbu chatga keladi. Javob berish uchun xabarga 'Reply' qiling.";
+
+            sendBuyerMainMenu(chatId, text, tgUser, lang);
+            return;
+        }
+
+        // 2. Check if phone belongs to a Store Owner
         Optional<Store> storeOpt = storeRepository.findByCleanPhone(cleanPhone);
         if (storeOpt.isEmpty()) {
             storeOpt = storeRepository.findByOwnerPhone("+" + cleanPhone);
@@ -353,23 +443,23 @@ public class SellerBotService extends TelegramLongPollingBot {
             storeRepository.save(store);
 
             session.setStore(store);
-            session.setPhoneNumber(phone);
             session.setState(SellerState.MAIN_MENU);
 
             String text = "ru".equals(lang) ?
                     "✅ *Поздравляем, ваш магазин успешно подключен!*\n\n🏪 *Магазин:* `" + store.getName() + "`\n📞 *Телефон:* `" + phone + "`\n\nИспользуйте меню ниже для добавления товаров и управления ценами:" :
                     "✅ *Tabriklaymiz, Do'koningiz Muvaffaqiyatli Ulandi!*\n\n🏪 *Do'kon:* `" + store.getName() + "`\n📞 *Telefon:* `" + phone + "`\n\nEndi quyidagi menyu orqali yangi mahsulot qo'shishingiz va narxlarni boshqarishingiz mumkin:";
             sendSellerMainMenu(chatId, text, session, lang);
-        } else {
-            session.setStore(null);
-            session.setPhoneNumber(phone);
-            session.setState(SellerState.MAIN_MENU);
-
-            String text = "ru".equals(lang) ?
-                    "✅ *Ваш номер телефона успешно сохранен!*\n\nВы находитесь в режиме *Покупателя*. Вы можете искать самые низкие цены и следить за скидками:" :
-                    "✅ *Telefon raqamingiz muvaffaqiyatli saqlandi!*\n\nSiz *PRICEIQ Xaridor* rejimidasiz. Barcha do'konlardagi eng arzon narxlarni qidirishingiz va narx tushishini kuzatishingiz mumkin:";
-            sendBuyerMainMenu(chatId, text, tgUser, lang);
+            return;
         }
+
+        // 3. Regular Buyer
+        session.setStore(null);
+        session.setState(SellerState.MAIN_MENU);
+
+        String text = "ru".equals(lang) ?
+                "✅ *Ваш номер телефона успешно сохранен!*\n\nВы находитесь в режиме *Покупателя*. Вы можете искать самые низкие цены и следить за скидками:" :
+                "✅ *Telefon raqamingiz muvaffaqiyatli saqlandi!*\n\nSiz *PRICEIQ Xaridor* rejimidasiz. Barcha do'konlardagi eng arzon narxlarni qidirishingiz va narx tushishini kuzatishingiz mumkin:";
+        sendBuyerMainMenu(chatId, text, tgUser, lang);
     }
 
     // --- Main Menus (Seller vs Buyer) ---
@@ -500,11 +590,17 @@ public class SellerBotService extends TelegramLongPollingBot {
     // --- Simplified Add Product FSM Flow ---
 
     private void startAddProductFlow(Long chatId, SellerSession session, String lang) {
-        if (session.getStore() == null) {
+        Optional<Store> storeOpt = findActiveStoreForUser(chatId, session.getPhoneNumber());
+        if (storeOpt.isEmpty()) {
+            SendMessage msg = new SendMessage();
+            msg.setChatId(chatId.toString());
+            msg.setText("ru".equals(lang) ? "⚠️ Магазин не привязан к вашему номеру." : "⚠️ Sizning raqamingizga biriktirilgan do'kon topilmadi.");
+            send(msg);
             handleStart(chatId, session, null, lang);
             return;
         }
 
+        session.setStore(storeOpt.get());
         session.clearTempProductData();
         session.setState(SellerState.ADD_PRODUCT_PHOTO);
 
@@ -641,16 +737,18 @@ public class SellerBotService extends TelegramLongPollingBot {
 
         session.setState(SellerState.ADD_PRODUCT_CONFIRM);
 
+        String storeName = session.getStore() != null ? session.getStore().getName() : "Store";
+
         String caption = "ru".equals(lang) ?
                 "📋 *Шаг 5: Подтвердите данные товара:*\n\n" +
                         "🏷️ *Название:* `" + session.getTempTitle() + "`\n" +
-                        "🏪 *Магазин:* `" + session.getStore().getName() + "`\n" +
+                        "🏪 *Магазин:* `" + storeName + "`\n" +
                         "💰 *Цена:* `" + formatMoney(session.getTempPriceUzs()) + " сум`\n" +
                         "📄 *Описание:* " + session.getTempDescription() + "\n\n" +
                         "Все данные верны?" :
                 "📋 *5-qadam: Mahsulot ma'lumotlarini tasdiqlang:*\n\n" +
                         "🏷️ *Nomi:* `" + session.getTempTitle() + "`\n" +
-                        "🏪 *Do'kon:* `" + session.getStore().getName() + "`\n" +
+                        "🏪 *Do'kon:* `" + storeName + "`\n" +
                         "💰 *Narxi:* `" + formatMoney(session.getTempPriceUzs()) + " so'm`\n" +
                         "📄 *Tavsif:* " + session.getTempDescription() + "\n\n" +
                         "Barcha ma'lumotlar to'g'rimi?";
@@ -715,7 +813,9 @@ public class SellerBotService extends TelegramLongPollingBot {
             msg.setText("✅ Til muvaffaqiyatli *O'zbekcha*ga o'rnatildi!");
             msg.setParseMode("Markdown");
             send(msg);
-            if (session.getStore() != null) {
+            Optional<Store> st = findActiveStoreForUser(chatId, session.getPhoneNumber());
+            if (st.isPresent()) {
+                session.setStore(st.get());
                 sendSellerMainMenu(chatId, "Asosiy menyu:", session, "uz");
             } else {
                 sendBuyerMainMenu(chatId, "Asosiy menyu:", tgUser, "uz");
@@ -727,7 +827,9 @@ public class SellerBotService extends TelegramLongPollingBot {
             msg.setText("✅ Язык успешно установлен на *Русский*!");
             msg.setParseMode("Markdown");
             send(msg);
-            if (session.getStore() != null) {
+            Optional<Store> st = findActiveStoreForUser(chatId, session.getPhoneNumber());
+            if (st.isPresent()) {
+                session.setStore(st.get());
                 sendSellerMainMenu(chatId, "Главное меню:", session, "ru");
             } else {
                 sendBuyerMainMenu(chatId, "Главное меню:", tgUser, "ru");
@@ -756,9 +858,19 @@ public class SellerBotService extends TelegramLongPollingBot {
             String name = tgUser.getFirstName() != null ? tgUser.getFirstName() : "Foydalanuvchi";
             String username = tgUser.getUserName() != null ? "@" + tgUser.getUserName() : "kiritilmagan";
             String phone = session.getPhoneNumber() != null ? session.getPhoneNumber() : "kiritilmagan";
-            String role = session.getStore() != null ?
-                    ("ru".equals(lang) ? "🏪 Продавец магазина (" + session.getStore().getName() + ")" : "🏪 Do'kon Sotuvchisi (" + session.getStore().getName() + ")") :
-                    ("ru".equals(lang) ? "🛍️ Покупатель (Buyer)" : "🛍️ Oddiy Xaridor (Buyer)");
+
+            // Dynamically query DB role
+            Optional<Store> storeOpt = findActiveStoreForUser(chatId, phone);
+            Optional<SupportOperator> opOpt = findActiveOperatorForUser(chatId, phone);
+
+            String role;
+            if (opOpt.isPresent()) {
+                role = "ru".equals(lang) ? "🎧 Support Оператор (" + opOpt.get().getFullName() + ")" : "🎧 Support Operator (" + opOpt.get().getFullName() + ")";
+            } else if (storeOpt.isPresent()) {
+                role = "ru".equals(lang) ? "🏪 Продавец магазина (" + storeOpt.get().getName() + ")" : "🏪 Do'kon Sotuvchisi (" + storeOpt.get().getName() + ")";
+            } else {
+                role = "ru".equals(lang) ? "🛍️ Покупатель (Buyer)" : "🛍️ Oddiy Xaridor (Buyer)";
+            }
 
             SendMessage msg = new SendMessage();
             msg.setChatId(chatId.toString());
@@ -778,20 +890,15 @@ public class SellerBotService extends TelegramLongPollingBot {
                             "🎭 *Rol:* " + role);
             send(msg);
         } else if ("settings_switch_seller".equals(data)) {
+            Optional<Store> storeOpt = findActiveStoreForUser(chatId, session.getPhoneNumber());
+
             if (session.getStore() != null) {
-                // Currently in Seller mode -> switch to Buyer mode
+                // Switch to Buyer
                 session.setStore(null);
                 session.setState(SellerState.MAIN_MENU);
                 String txt = "ru".equals(lang) ? "✅ Вы успешно переключились в режим *Покупателя*." : "✅ Siz muvaffaqiyatli *Xaridor* rejimiga o'tdingiz.";
                 sendBuyerMainMenu(chatId, txt, tgUser, lang);
                 return;
-            }
-
-            // Check if user is linked to any store
-            Optional<Store> storeOpt = storeRepository.findByOwnerChatId(chatId);
-            if (storeOpt.isEmpty() && session.getPhoneNumber() != null) {
-                String clean = session.getPhoneNumber().replaceAll("[^0-9]", "");
-                storeOpt = storeRepository.findByCleanPhone(clean);
             }
 
             if (storeOpt.isPresent()) {
@@ -811,7 +918,9 @@ public class SellerBotService extends TelegramLongPollingBot {
                 send(msg);
             }
         } else if ("settings_back".equals(data)) {
-            if (session.getStore() != null) {
+            Optional<Store> st = findActiveStoreForUser(chatId, session.getPhoneNumber());
+            if (st.isPresent()) {
+                session.setStore(st.get());
                 sendSellerMainMenu(chatId, "ru".equals(lang) ? "Главное меню:" : "Asosiy menyu:", session, lang);
             } else {
                 sendBuyerMainMenu(chatId, "ru".equals(lang) ? "Главное меню:" : "Asosiy menyu:", tgUser, lang);
@@ -820,13 +929,16 @@ public class SellerBotService extends TelegramLongPollingBot {
     }
 
     private void saveNewProductToDatabase(Long chatId, SellerSession session, Integer messageId, String lang) {
-        if (session.getStore() == null || session.getTempTitle() == null || session.getTempPriceUzs() == null) {
+        Optional<Store> storeOpt = findActiveStoreForUser(chatId, session.getPhoneNumber());
+        if (storeOpt.isEmpty() || session.getTempTitle() == null || session.getTempPriceUzs() == null) {
             SendMessage msg = new SendMessage();
             msg.setChatId(chatId.toString());
             msg.setText("ru".equals(lang) ? "⚠️ Данные сессии не найдены. Попробуйте снова." : "⚠️ Sessiya ma'lumotlari topilmadi. Qaytadan urinib ko'ring.");
             send(msg);
             return;
         }
+
+        Store store = storeOpt.get();
 
         try {
             Category defaultCat = categoryRepository.findAll().stream().findFirst()
@@ -855,11 +967,11 @@ public class SellerBotService extends TelegramLongPollingBot {
             ProductOffer offer = new ProductOffer(
                     null,
                     product,
-                    session.getStore(),
+                    store,
                     session.getTempPriceUzs(),
                     (long) (session.getTempPriceUzs() * 1.05),
                     true,
-                    session.getStore().getWebsiteUrl() != null ? session.getStore().getWebsiteUrl() : "https://uzum.uz"
+                    store.getWebsiteUrl() != null ? store.getWebsiteUrl() : "https://uzum.uz"
             );
             offerRepository.save(offer);
 
@@ -910,12 +1022,16 @@ public class SellerBotService extends TelegramLongPollingBot {
     // --- Product List & Price Update ---
 
     private void handleListMyProducts(Long chatId, SellerSession session, String lang) {
-        if (session.getStore() == null) {
+        Optional<Store> storeOpt = findActiveStoreForUser(chatId, session.getPhoneNumber());
+        if (storeOpt.isEmpty()) {
             handleStart(chatId, session, null, lang);
             return;
         }
 
-        List<ProductOffer> myOffers = offerRepository.findByStoreId(session.getStore().getId());
+        Store store = storeOpt.get();
+        session.setStore(store);
+
+        List<ProductOffer> myOffers = offerRepository.findByStoreId(store.getId());
         if (myOffers.isEmpty()) {
             SendMessage msg = new SendMessage();
             msg.setChatId(chatId.toString());
@@ -929,9 +1045,9 @@ public class SellerBotService extends TelegramLongPollingBot {
 
         StringBuilder sb = new StringBuilder();
         if ("ru".equals(lang)) {
-            sb.append("🏪 Товары магазина *").append(session.getStore().getName()).append("* (Всего: ").append(myOffers.size()).append(" шт.):\n\n");
+            sb.append("🏪 Товары магазина *").append(store.getName()).append("* (Всего: ").append(myOffers.size()).append(" шт.):\n\n");
         } else {
-            sb.append("🏪 *").append(session.getStore().getName()).append("* mahsulotlari (Jami: ").append(myOffers.size()).append(" ta):\n\n");
+            sb.append("🏪 *").append(store.getName()).append("* mahsulotlari (Jami: ").append(myOffers.size()).append(" ta):\n\n");
         }
 
         int count = 0;
@@ -950,12 +1066,16 @@ public class SellerBotService extends TelegramLongPollingBot {
     }
 
     private void handleStartPriceUpdate(Long chatId, SellerSession session, String lang) {
-        if (session.getStore() == null) {
+        Optional<Store> storeOpt = findActiveStoreForUser(chatId, session.getPhoneNumber());
+        if (storeOpt.isEmpty()) {
             handleStart(chatId, session, null, lang);
             return;
         }
 
-        List<ProductOffer> myOffers = offerRepository.findByStoreId(session.getStore().getId());
+        Store store = storeOpt.get();
+        session.setStore(store);
+
+        List<ProductOffer> myOffers = offerRepository.findByStoreId(store.getId());
         if (myOffers.isEmpty()) {
             SendMessage msg = new SendMessage();
             msg.setChatId(chatId.toString());
@@ -998,10 +1118,13 @@ public class SellerBotService extends TelegramLongPollingBot {
         }
 
         Long prodId = session.getTempSelectedProductId();
-        if (prodId != null && session.getStore() != null) {
+        Optional<Store> storeOpt = findActiveStoreForUser(chatId, session.getPhoneNumber());
+
+        if (prodId != null && storeOpt.isPresent()) {
+            Store store = storeOpt.get();
             List<ProductOffer> offers = offerRepository.findByProductId(prodId);
             for (ProductOffer offer : offers) {
-                if (offer.getStore().getId().equals(session.getStore().getId())) {
+                if (offer.getStore().getId().equals(store.getId())) {
                     offer.setOldPriceUzs(offer.getPriceUzs());
                     offer.setPriceUzs(newPrice);
                     offerRepository.save(offer);
