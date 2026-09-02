@@ -3,6 +3,7 @@ package com.priceiq.controller;
 import com.priceiq.dto.ProductDto;
 import com.priceiq.dto.UzumProductDto;
 import com.priceiq.service.FileStorageService;
+import com.priceiq.service.ProductImportService;
 import com.priceiq.service.ProductService;
 import com.priceiq.service.UzumMarketService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -18,17 +19,22 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/products")
 @CrossOrigin(origins = "*", allowedHeaders = "*")
-@Tag(name = "Product Catalog", description = "Endpoints for Smartphone search, deal scores, price comparison, and Admin CRUD")
+@Tag(name = "Product Catalog", description = "Endpoints for Smartphone search, deal scores, price comparison, Excel bulk import and Admin CRUD")
 public class ProductController {
 
     private final ProductService productService;
     private final FileStorageService fileStorageService;
     private final UzumMarketService uzumMarketService;
+    private final ProductImportService productImportService;
 
-    public ProductController(ProductService productService, FileStorageService fileStorageService, UzumMarketService uzumMarketService) {
+    public ProductController(ProductService productService,
+                             FileStorageService fileStorageService,
+                             UzumMarketService uzumMarketService,
+                             ProductImportService productImportService) {
         this.productService = productService;
         this.fileStorageService = fileStorageService;
         this.uzumMarketService = uzumMarketService;
+        this.productImportService = productImportService;
     }
 
     @GetMapping
@@ -64,11 +70,29 @@ public class ProductController {
     @PostMapping(value = "/upload-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Upload image file from PC for product creation")
     public ResponseEntity<Map<String, String>> uploadImage(@RequestParam("file") MultipartFile file) {
-        if (file.isEmpty()) {
+        if (file == null || file.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "File is empty"));
         }
         String imageUrl = fileStorageService.storeFile(file);
         return ResponseEntity.ok(Map.of("imageUrl", imageUrl));
+    }
+
+    @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Bulk import products from Excel (.xlsx) file")
+    public ResponseEntity<Map<String, Object>> importProducts(@RequestParam("file") MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Fayl yuborilmadi yoki u bo'sh", "success", false));
+        }
+        try {
+            int count = productImportService.importProductsFromExcel(file);
+            return ResponseEntity.ok(Map.of(
+                    "message", "Excel faylidan " + count + " ta mahsulot muvaffaqiyatli import qilindi",
+                    "count", count,
+                    "success", true
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Import qilishda xatolik: " + e.getMessage(), "success", false));
+        }
     }
 
     @PostMapping
