@@ -326,24 +326,27 @@ public class SellerBotService extends TelegramLongPollingBot {
     }
 
     private String getUserLanguage(Long chatId, org.telegram.telegrambots.meta.api.objects.User tgUser) {
-        if (userLanguageMap.containsKey(chatId)) {
-            return userLanguageMap.get(chatId);
-        }
         if (tgUser != null) {
             Optional<com.priceiq.entity.User> userOpt = userRepository.findByTelegramId(tgUser.getId());
             if (userOpt.isPresent() && userOpt.get().getLanguageCode() != null) {
-                String l = userOpt.get().getLanguageCode();
-                userLanguageMap.put(chatId, l);
-                return l;
+                String l = userOpt.get().getLanguageCode().toLowerCase();
+                String normalized = l.startsWith("ru") ? "ru" : "uz";
+                userLanguageMap.put(chatId, normalized);
+                return normalized;
             }
+        }
+        if (userLanguageMap.containsKey(chatId)) {
+            String l = userLanguageMap.get(chatId).toLowerCase();
+            return l.startsWith("ru") ? "ru" : "uz";
         }
         return "uz";
     }
 
     private void setUserLanguage(Long chatId, Long telegramId, String lang) {
-        userLanguageMap.put(chatId, lang);
+        String normalized = (lang != null && lang.toLowerCase().startsWith("ru")) ? "ru" : "uz";
+        userLanguageMap.put(chatId, normalized);
         userRepository.findByTelegramId(telegramId).ifPresent(user -> {
-            user.setLanguageCode(lang);
+            user.setLanguageCode(normalized);
             userRepository.save(user);
         });
     }
@@ -1600,8 +1603,9 @@ public class SellerBotService extends TelegramLongPollingBot {
         int count = 0;
         for (ProductDto p : all) {
             count++;
-            sb.append(count).append(". 📱 ").append(p.getTitleUz()).append("\n")
-                    .append("   💰 ").append("ru".equals(lang) ? "Цена: " : "Narxi: ").append(formatMoney(p.getLowestPriceUzs())).append(" so'm\n")
+            String title = "ru".equals(lang) ? (p.getTitleRu() != null && !p.getTitleRu().isEmpty() ? p.getTitleRu() : p.getTitleUz()) : p.getTitleUz();
+            sb.append(count).append(". 📱 ").append(title).append("\n")
+                    .append("   💰 ").append("ru".equals(lang) ? "Цена: " : "Narxi: ").append(formatMoney(p.getLowestPriceUzs())).append(" ").append("ru".equals(lang) ? "сум" : "so'm").append("\n")
                     .append("   🏪 ").append("ru".equals(lang) ? "Магазин: " : "Do'kon: ").append(p.getStoreName()).append("\n\n");
             if (count >= 5) break;
         }
@@ -1631,7 +1635,7 @@ public class SellerBotService extends TelegramLongPollingBot {
         if (userOpt.isEmpty()) {
             SendMessage msg = new SendMessage();
             msg.setChatId(chatId.toString());
-            msg.setText("ru".equals(lang) ? "⭐ Ваш список избранного пуст." : "⭐ Sevimlilar ro'yxatingiz bo'sh.");
+            msg.setText("ru".equals(lang) ? "⭐ У вас пока нет сохраненных товаров в избранном." : "⭐ Sizda hali saralangan mahsulotlar yo'q.");
             send(msg);
             return;
         }
@@ -1640,7 +1644,7 @@ public class SellerBotService extends TelegramLongPollingBot {
         if (favs.isEmpty()) {
             SendMessage msg = new SendMessage();
             msg.setChatId(chatId.toString());
-            msg.setText("ru".equals(lang) ? "⭐ У вас пока нет сохраненных товаров в избранном." : "⭐ Sizda hali saqlangan sevimlilar mavjud emas.");
+            msg.setText("ru".equals(lang) ? "⭐ У вас пока нет сохраненных товаров в избранном." : "⭐ Sizda hali saralangan mahsulotlar yo'q.");
             send(msg);
             return;
         }
@@ -1655,7 +1659,8 @@ public class SellerBotService extends TelegramLongPollingBot {
         int count = 0;
         for (Favorite f : favs) {
             count++;
-            sb.append(count).append(". 📱 ").append(f.getProduct().getTitleUz()).append("\n\n");
+            String title = "ru".equals(lang) ? (f.getProduct().getTitleRu() != null && !f.getProduct().getTitleRu().isEmpty() ? f.getProduct().getTitleRu() : f.getProduct().getTitleUz()) : f.getProduct().getTitleUz();
+            sb.append(count).append(". 📱 ").append(title).append("\n\n");
         }
 
         SendMessage msg = new SendMessage();
@@ -1689,7 +1694,8 @@ public class SellerBotService extends TelegramLongPollingBot {
         if ("ru".equals(lang)) {
             sb.append("🔔 Ваши уведомления о ценах:\n\n");
             for (PriceAlert a : alerts) {
-                sb.append("• ").append(a.getProduct().getTitleUz()).append("\n")
+                String title = a.getProduct().getTitleRu() != null && !a.getProduct().getTitleRu().isEmpty() ? a.getProduct().getTitleRu() : a.getProduct().getTitleUz();
+                sb.append("• ").append(title).append("\n")
                         .append("  🎯 Целевая цена: ").append(formatMoney(a.getTargetPriceUzs())).append(" сум\n\n");
             }
         } else {
@@ -1711,16 +1717,17 @@ public class SellerBotService extends TelegramLongPollingBot {
         List<ProductDto> products = productService.searchProducts(text);
         if (!products.isEmpty()) {
             ProductDto top = products.get(0);
+            String title = "ru".equals(lang) ? (top.getTitleRu() != null && !top.getTitleRu().isEmpty() ? top.getTitleRu() : top.getTitleUz()) : top.getTitleUz();
             SendMessage msg = new SendMessage();
             msg.setChatId(chatId.toString());
             msg.setParseMode(null);
             msg.setText("ru".equals(lang) ?
                     "🔍 Результат поиска:\n\n" +
-                            "📱 " + top.getTitleUz() + "\n" +
+                            "📱 " + title + "\n" +
                             "💰 Самая низкая цена: " + formatMoney(top.getLowestPriceUzs()) + " сум\n" +
                             "🏪 Магазин: " + top.getStoreName() :
                     "🔍 Qidiruv natijasi:\n\n" +
-                            "📱 " + top.getTitleUz() + "\n" +
+                            "📱 " + title + "\n" +
                             "💰 Eng arzon narx: " + formatMoney(top.getLowestPriceUzs()) + " so'm\n" +
                             "🏪 Do'kon: " + top.getStoreName());
 

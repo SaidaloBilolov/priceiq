@@ -30,8 +30,9 @@ public class UserService {
                         user.setUsername(username);
                         updated = true;
                     }
-                    if (languageCode != null && !languageCode.equals(user.getLanguageCode())) {
-                        user.setLanguageCode(languageCode);
+                    if (user.getLanguageCode() == null && languageCode != null) {
+                        String norm = languageCode.toLowerCase().startsWith("ru") ? "ru" : "uz";
+                        user.setLanguageCode(norm);
                         updated = true;
                     }
                     return updated ? userRepository.save(user) : user;
@@ -41,7 +42,8 @@ public class UserService {
                     u.setTelegramId(telegramId);
                     u.setFirstName(firstName);
                     u.setUsername(username);
-                    u.setLanguageCode(languageCode != null ? languageCode : "uz");
+                    String norm = (languageCode != null && languageCode.toLowerCase().startsWith("ru")) ? "ru" : "uz";
+                    u.setLanguageCode(norm);
                     return userRepository.save(u);
                 });
     }
