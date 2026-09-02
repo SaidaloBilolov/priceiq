@@ -8,10 +8,16 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import javax.net.ssl.*;
+import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.security.SecureRandom;
+import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -23,7 +29,41 @@ public class UzumMarketService {
     private static final String UZUM_SEARCH_URL = "https://api.uzum.uz/api/v2/product/search";
 
     public UzumMarketService() {
-        this.restTemplate = new RestTemplate();
+        this.restTemplate = createTrustAllRestTemplate();
+    }
+
+    private RestTemplate createTrustAllRestTemplate() {
+        try {
+            TrustManager[] trustAllCerts = new TrustManager[]{
+                    new X509TrustManager() {
+                        public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
+                        public void checkClientTrusted(X509Certificate[] certs, String authType) {}
+                        public void checkServerTrusted(X509Certificate[] certs, String authType) {}
+                    }
+            };
+
+            SSLContext sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(null, trustAllCerts, new SecureRandom());
+            HttpsURLConnection.setDefaultSSLSocketFactory(sslContext.getSocketFactory());
+            HttpsURLConnection.setDefaultHostnameVerifier((hostname, session) -> true);
+
+            SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory() {
+                @Override
+                protected void prepareConnection(HttpURLConnection connection, String httpMethod) throws IOException {
+                    if (connection instanceof HttpsURLConnection) {
+                        ((HttpsURLConnection) connection).setSSLSocketFactory(sslContext.getSocketFactory());
+                        ((HttpsURLConnection) connection).setHostnameVerifier((hostname, session) -> true);
+                    }
+                    super.prepareConnection(connection, httpMethod);
+                }
+            };
+            factory.setConnectTimeout(5000);
+            factory.setReadTimeout(10000);
+            return new RestTemplate(factory);
+        } catch (Exception e) {
+            log.error("Failed to configure trust-all RestTemplate: {}", e.getMessage(), e);
+            return new RestTemplate();
+        }
     }
 
     public List<UzumProductDto> searchProducts(String query) {
@@ -39,9 +79,10 @@ public class UzumMarketService {
                     .toUriString();
 
             HttpHeaders headers = new HttpHeaders();
-            headers.set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-            headers.set("Accept", "application/json, text/plain, */*");
-            headers.set("Accept-Language", "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7");
+            headers.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36");
+            headers.set("Accept", "application/json");
+            headers.set("Origin", "https://uzum.uz");
+            headers.set("Referer", "https://uzum.uz/");
 
             HttpEntity<Void> requestEntity = new HttpEntity<>(headers);
 
@@ -64,10 +105,10 @@ public class UzumMarketService {
                     return dtos;
                 }
             } else {
-                log.error("Uzum Market API returned non-200 status code [{}] for query: [{}]", response.getStatusCode(), query);
+                log.error("UZUM API ERROR: Non-200 status code [{}] for query: [{}]", response.getStatusCode(), query);
             }
         } catch (Exception e) {
-            log.error("Exception during Uzum Market API search for query [{}]: {}", query, e.getMessage());
+            log.error("UZUM API ERROR: Exception during Uzum search for query [{}]: ", query, e);
         }
 
         return new ArrayList<>();

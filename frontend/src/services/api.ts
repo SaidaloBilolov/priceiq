@@ -183,11 +183,24 @@ export const api = {
       } catch (e) {
         console.warn('Live Uzum search fetch error', e);
       }
+
+      // If user performed a search and zero results came from live API, check DB, but NEVER return mock iPhone 16!
+      try {
+        const query = new URLSearchParams({ search: params.search.trim() });
+        const res = await fetch(`${baseUrl}/products?${query.toString()}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            return data;
+          }
+        }
+      } catch (e) {}
+
+      return [];
     }
 
-    // 2. Standard backend catalog query
+    // 2. Standard home page catalog query (without search param)
     const query = new URLSearchParams();
-    if (params?.search) query.set('search', params.search);
     if (params?.categoryId) query.set('categoryId', params.categoryId.toString());
 
     try {
