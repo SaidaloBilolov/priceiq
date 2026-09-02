@@ -90,11 +90,14 @@ export const api = {
   async getProducts(params?: { search?: string; categoryId?: number }): Promise<Product[]> {
     const baseUrl = getApiBaseUrl();
 
-    // 1. If search query provided, search live Uzum Market products first
+    // 1. If search query provided, search live Uzum Market products first with no-store cache
     if (params?.search && params.search.trim().length > 0) {
       try {
         const rootUrl = baseUrl.replace(/\/api$/, '');
-        const res = await fetch(`${rootUrl}/api/v1/products/search?query=${encodeURIComponent(params.search.trim())}`);
+        const res = await fetch(`${rootUrl}/api/v1/products/search?query=${encodeURIComponent(params.search.trim())}&t=${Date.now()}`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
+        });
         if (res.ok) {
           const uzumItems = await res.json();
           if (Array.isArray(uzumItems) && uzumItems.length > 0) {
@@ -130,10 +133,10 @@ export const api = {
         console.warn('Live Uzum search fetch error', e);
       }
 
-      // If user performed a search and zero results came from live API, check DB, but NEVER return mock iPhone 16!
+      // If user performed a search and zero results came from live API, check DB with no-store
       try {
-        const query = new URLSearchParams({ search: params.search.trim() });
-        const res = await fetch(`${baseUrl}/products?${query.toString()}`);
+        const query = new URLSearchParams({ search: params.search.trim(), t: Date.now().toString() });
+        const res = await fetch(`${baseUrl}/products?${query.toString()}`, { cache: 'no-store' });
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data)) {
@@ -146,11 +149,11 @@ export const api = {
     }
 
     // 2. Standard home page catalog query (without search param)
-    const query = new URLSearchParams();
+    const query = new URLSearchParams({ t: Date.now().toString() });
     if (params?.categoryId) query.set('categoryId', params.categoryId.toString());
 
     try {
-      const res = await fetch(`${baseUrl}/products?${query.toString()}`);
+      const res = await fetch(`${baseUrl}/products?${query.toString()}`, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {

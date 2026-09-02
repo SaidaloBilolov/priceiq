@@ -14,6 +14,12 @@ import './i18n';
 export function App() {
   useEffect(() => {
     initTelegramApp();
+    try {
+      // Clear legacy storage cache keys to prevent rendering old mock items
+      localStorage.removeItem('priceiq_cached_products');
+      localStorage.removeItem('priceiq_products_cache');
+      localStorage.removeItem('cached_search_results');
+    } catch (e) {}
   }, []);
 
   return (
