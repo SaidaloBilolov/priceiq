@@ -1789,11 +1789,19 @@ public class SellerBotService extends TelegramLongPollingBot {
 
             send(msg);
         } else {
+            boolean isRu = "ru".equals(lang);
             SendMessage msg = new SendMessage();
             msg.setChatId(chatId.toString());
-            msg.setText("ru".equals(lang) ?
-                    "Нажмите /menu или воспользуйтесь кнопками меню ниже." :
-                    "Buyruqni tanlash uchun /menu bosing yoki pastdagi menyu tugmalaridan foydalaning.");
+
+            if (text != null && text.trim().length() > 1 && !text.startsWith("/")) {
+                msg.setText(isRu ?
+                        "🔍 По запросу \"" + text + "\" ничего не найдено.\n\n⚠️ Uzum Market API: Ограничен доступ (Anti-Bot Challenge на сервере Render). Попробуйте сменить запрос или открыть приложение." :
+                        "🔍 \"" + text + "\" bo'yicha hech narsa topilmadi.\n\n⚠️ Uzum Market API: Ulanib bo'lmadi (Render serverida Yandex CAPTCHA Anti-Bot chegarasi). Boshqa kalit so'z bilan qidirib ko'ring yoki Mini App'ni oching.");
+            } else {
+                msg.setText(isRu ?
+                        "Нажмите /menu или воспользуйтесь кнопками меню ниже." :
+                        "Buyruqni tanlash uchun /menu bosing yoki pastdagi menyu tugmalaridan foydalaning.");
+            }
             send(msg);
         }
     }
