@@ -13,20 +13,21 @@ import org.springframework.web.util.UriComponentsBuilder;
 import javax.net.ssl.*;
 import java.io.IOException;
 import java.net.HttpURLConnection;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 @Service
 public class UzumMarketService {
 
     private static final Logger log = LoggerFactory.getLogger(UzumMarketService.class);
     private final RestTemplate restTemplate;
+
     private static final String UZUM_REST_URL = "https://api.uzum.uz/api/v2/product/search";
-    private static final String UZUM_GRAPHQL_URL = "https://graphql.uzum.uz/";
+    private static final String UZUM_WEB_URL = "https://uzum.uz/api/v2/product/search";
 
     public UzumMarketService() {
         this.restTemplate = createTrustAllRestTemplate();
@@ -72,10 +73,34 @@ public class UzumMarketService {
             return new ArrayList<>();
         }
 
-        // --- Approach 1: Uzum Mobile Direct Endpoint ---
+        String trimmedQuery = query.trim();
+
+        // 1. Primary Attempt: AllOrigins Public Scraper Proxy Gateway (Bypasses Datacenter IP blocking)
+        try {
+            String targetUzumUrl = UZUM_REST_URL + "?query=" + URLEncoder.encode(trimmedQuery, StandardCharsets.UTF_8) + "&size=10";
+            String proxyUrl = "https://api.allorigins.win/raw?url=" + URLEncoder.encode(targetUzumUrl, StandardCharsets.UTF_8);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36");
+            headers.set("Accept", "application/json");
+
+            HttpEntity<Void> requestEntity = new HttpEntity<>(headers);
+            ResponseEntity<String> proxyResponse = restTemplate.exchange(proxyUrl, HttpMethod.GET, requestEntity, String.class);
+
+            if (proxyResponse.getStatusCode().is2xxSuccessful() && proxyResponse.getBody() != null && !proxyResponse.getBody().contains("<html")) {
+                List<UzumProductDto> parsed = parseJsonResponse(proxyResponse.getBody());
+                if (!parsed.isEmpty()) {
+                    return parsed;
+                }
+            }
+        } catch (Exception e) {
+            log.error("Uzum Scraper Proxy Gateway Attempt Error: ", e.getMessage());
+        }
+
+        // 2. Secondary Attempt: Direct Uzum Mobile API
         try {
             String url = UriComponentsBuilder.fromHttpUrl(UZUM_REST_URL)
-                    .queryParam("query", query.trim())
+                    .queryParam("query", trimmedQuery)
                     .queryParam("size", 10)
                     .build()
                     .toUriString();
@@ -90,38 +115,21 @@ public class UzumMarketService {
             headers.set("Referer", "https://uzum.uz/");
 
             HttpEntity<Void> requestEntity = new HttpEntity<>(headers);
-
             ResponseEntity<String> rawResponse = restTemplate.exchange(url, HttpMethod.GET, requestEntity, String.class);
 
-            System.out.println("UZUM STATUS CODE: " + rawResponse.getStatusCode());
-            System.out.println("UZUM RAW BODY: " + rawResponse.getBody());
-
-            log.info("UZUM STATUS CODE: {}", rawResponse.getStatusCode());
-            log.info("UZUM RAW BODY: {}", rawResponse.getBody());
-
             if (rawResponse.getStatusCode().is2xxSuccessful() && rawResponse.getBody() != null && !rawResponse.getBody().contains("<html")) {
-                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-                UzumSearchResponseDto responseDto = mapper.readValue(rawResponse.getBody(), UzumSearchResponseDto.class);
-
-                if (responseDto != null && responseDto.getPayload() != null) {
-                    List<UzumSearchResponseDto.ProductItem> items = responseDto.getPayload().getItemList();
-                    if (items != null && !items.isEmpty()) {
-                        List<UzumProductDto> dtos = new ArrayList<>();
-                        for (UzumSearchResponseDto.ProductItem item : items) {
-                            dtos.add(item.toUzumProductDto());
-                        }
-                        return dtos;
-                    }
+                List<UzumProductDto> parsed = parseJsonResponse(rawResponse.getBody());
+                if (!parsed.isEmpty()) {
+                    return parsed;
                 }
             }
         } catch (Exception e) {
-            System.err.println("UZUM API REST ERROR: " + e.getMessage());
-            log.error("UZUM API REST ERROR: ", e);
+            log.error("Uzum Direct Mobile API Attempt Error: ", e.getMessage());
         }
 
-        // --- Approach 2: Uzum Web Search Endpoint ---
+        // 3. Tertiary Attempt: Uzum Direct Web Gateway
         try {
-            String webUrl = "https://uzum.uz/api/v2/product/search?query=" + java.net.URLEncoder.encode(query.trim(), "UTF-8") + "&size=10";
+            String webUrl = UZUM_WEB_URL + "?query=" + URLEncoder.encode(trimmedQuery, StandardCharsets.UTF_8) + "&size=10";
 
             HttpHeaders headers = new HttpHeaders();
             headers.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36");
@@ -131,67 +139,38 @@ public class UzumMarketService {
             HttpEntity<Void> requestEntity = new HttpEntity<>(headers);
             ResponseEntity<String> webResponse = restTemplate.exchange(webUrl, HttpMethod.GET, requestEntity, String.class);
 
-            System.out.println("UZUM WEB STATUS CODE: " + webResponse.getStatusCode());
-            System.out.println("UZUM WEB RAW BODY: " + webResponse.getBody());
-
             if (webResponse.getStatusCode().is2xxSuccessful() && webResponse.getBody() != null && !webResponse.getBody().contains("<html")) {
-                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-                UzumSearchResponseDto responseDto = mapper.readValue(webResponse.getBody(), UzumSearchResponseDto.class);
-
-                if (responseDto != null && responseDto.getPayload() != null) {
-                    List<UzumSearchResponseDto.ProductItem> items = responseDto.getPayload().getItemList();
-                    if (items != null && !items.isEmpty()) {
-                        List<UzumProductDto> dtos = new ArrayList<>();
-                        for (UzumSearchResponseDto.ProductItem item : items) {
-                            dtos.add(item.toUzumProductDto());
-                        }
-                        return dtos;
-                    }
+                List<UzumProductDto> parsed = parseJsonResponse(webResponse.getBody());
+                if (!parsed.isEmpty()) {
+                    return parsed;
                 }
             }
         } catch (Exception e) {
-            System.err.println("UZUM WEB API ERROR: " + e.getMessage());
-            log.error("UZUM WEB API ERROR: ", e);
+            log.error("Uzum Direct Web API Attempt Error: ", e.getMessage());
         }
 
-        // --- Approach 3: Public CORS Proxy / Scraper Gateway ---
+        // Strictly return empty list [] if zero items returned
+        return new ArrayList<>();
+    }
+
+    private List<UzumProductDto> parseJsonResponse(String json) {
         try {
-            String targetUzumUrl = "https://api.uzum.uz/api/v2/product/search?query=" + java.net.URLEncoder.encode(query.trim(), "UTF-8") + "&size=10";
-            String proxyUrl = "https://api.allorigins.win/raw?url=" + java.net.URLEncoder.encode(targetUzumUrl, "UTF-8");
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            UzumSearchResponseDto responseDto = mapper.readValue(json, UzumSearchResponseDto.class);
 
-            HttpHeaders headers = new HttpHeaders();
-            headers.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36");
-            headers.set("Accept", "application/json");
-
-            HttpEntity<Void> requestEntity = new HttpEntity<>(headers);
-            ResponseEntity<String> proxyResponse = restTemplate.exchange(proxyUrl, HttpMethod.GET, requestEntity, String.class);
-
-            System.out.println("UZUM PROXY STATUS CODE: " + proxyResponse.getStatusCode());
-            System.out.println("UZUM PROXY RAW BODY: " + proxyResponse.getBody());
-
-            log.info("UZUM PROXY STATUS CODE: {}", proxyResponse.getStatusCode());
-            log.info("UZUM PROXY RAW BODY: {}", proxyResponse.getBody());
-
-            if (proxyResponse.getStatusCode().is2xxSuccessful() && proxyResponse.getBody() != null && !proxyResponse.getBody().contains("<html")) {
-                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-                UzumSearchResponseDto responseDto = mapper.readValue(proxyResponse.getBody(), UzumSearchResponseDto.class);
-
-                if (responseDto != null && responseDto.getPayload() != null) {
-                    List<UzumSearchResponseDto.ProductItem> items = responseDto.getPayload().getItemList();
-                    if (items != null && !items.isEmpty()) {
-                        List<UzumProductDto> dtos = new ArrayList<>();
-                        for (UzumSearchResponseDto.ProductItem item : items) {
-                            dtos.add(item.toUzumProductDto());
-                        }
-                        return dtos;
+            if (responseDto != null && responseDto.getPayload() != null) {
+                List<UzumSearchResponseDto.ProductItem> items = responseDto.getPayload().getItemList();
+                if (items != null && !items.isEmpty()) {
+                    List<UzumProductDto> dtos = new ArrayList<>();
+                    for (UzumSearchResponseDto.ProductItem item : items) {
+                        dtos.add(item.toUzumProductDto());
                     }
+                    return dtos;
                 }
             }
         } catch (Exception e) {
-            System.err.println("UZUM API PROXY ERROR: " + e.getMessage());
-            log.error("UZUM API PROXY ERROR: ", e);
+            log.error("Failed to parse Uzum JSON response: ", e.getMessage());
         }
-
         return new ArrayList<>();
     }
 }
