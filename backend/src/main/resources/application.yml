@@ -9,6 +9,12 @@ spring:
     driver-class-name: org.postgresql.Driver
     username: ${DB_USER:${SPRING_DATASOURCE_USERNAME:neondb_owner}}
     password: ${DB_PASS:${SPRING_DATASOURCE_PASSWORD:npg_XYvxkjzQ0nc2}}
+    hikari:
+      max-lifetime: 540000
+      idle-timeout: 300000
+      keepalive-time: 30000
+      validation-timeout: 3000
+      connection-test-query: SELECT 1
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:

@@ -151,14 +151,13 @@ export const api = {
       const res = await fetch(`${baseUrl}/products?${query.toString()}`);
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           return data;
         }
       }
     } catch (e) {
       console.warn('Backend fetch fallback', e);
     }
-
     return DEFAULT_PRODUCTS;
   },
 
