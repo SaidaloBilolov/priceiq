@@ -1709,54 +1709,39 @@ public class SellerBotService extends TelegramLongPollingBot {
 
     private void handleDefaultSearchOrHelp(Long chatId, String text, String lang) {
         log.info("Processing search query via bot: {}", text);
-        List<ProductDto> localProducts = productService.searchProducts(text);
         List<UzumProductDto> uzumProducts = uzumMarketService.searchProducts(text);
 
-        if (!localProducts.isEmpty() || !uzumProducts.isEmpty()) {
-            StringBuilder sb = new StringBuilder();
-            boolean isRu = "ru".equals(lang);
+        boolean isRu = "ru".equals(lang);
 
+        if (!uzumProducts.isEmpty()) {
+            StringBuilder sb = new StringBuilder();
             if (isRu) {
-                sb.append("🔍 Результаты поиска для \"").append(text).append("\":\n\n");
+                sb.append("🔍 Результаты поиска на Uzum Market для \"").append(text).append("\":\n\n");
             } else {
-                sb.append("🔍 \"").append(text).append("\" bo'yicha qidiruv natijalari:\n\n");
+                sb.append("🔍 \"").append(text).append("\" bo'yicha Uzum Market qidiruv natijalari:\n\n");
             }
 
             int count = 0;
-            // 1. Local Database Products
-            for (ProductDto top : localProducts) {
+            for (UzumProductDto u : uzumProducts) {
                 count++;
-                String title = isRu ? (top.getTitleRu() != null && !top.getTitleRu().isEmpty() ? top.getTitleRu() : top.getTitleUz()) : top.getTitleUz();
-                sb.append(count).append(". 📱 ").append(title).append("\n")
-                        .append("   💰 ").append(isRu ? "Цена: " : "Narxi: ").append(formatMoney(top.getLowestPriceUzs())).append(isRu ? " сум" : " so'm").append("\n")
-                        .append("   🏪 ").append(isRu ? "Магазин: " : "Do'kon: ").append(top.getStoreName()).append("\n\n");
-                if (count >= 3) break;
-            }
+                String title = u.getTitle();
+                Long currentPrice = u.getPrice();
+                Long fullPrice = u.getFullPrice();
+                Double rating = u.getRating() != null ? u.getRating() : 4.8;
 
-            // 2. Uzum Market Live API Products
-            if (!uzumProducts.isEmpty()) {
-                sb.append(isRu ? "🛍️ Из Uzum Market:\n\n" : "🛍️ Uzum Market'dan:\n\n");
-                for (UzumProductDto u : uzumProducts) {
-                    count++;
-                    String title = u.getTitle();
-                    Long currentPrice = u.getPrice();
-                    Long fullPrice = u.getFullPrice();
-                    Double rating = u.getRating() != null ? u.getRating() : 4.8;
+                sb.append(count).append(". 🛍️ ").append(title).append("\n");
+                sb.append("   💰 ").append(isRu ? "Цена: " : "Narxi: ").append(formatMoney(currentPrice)).append(isRu ? " сум" : " so'm");
 
-                    sb.append(count).append(". 🛍️ ").append(title).append("\n");
-                    sb.append("   💰 ").append(isRu ? "Цена: " : "Narxi: ").append(formatMoney(currentPrice)).append(isRu ? " сум" : " so'm");
-
-                    if (fullPrice != null && fullPrice > currentPrice) {
-                        long discount = Math.round((1.0 - ((double) currentPrice / fullPrice)) * 100);
-                        if (discount > 0) {
-                            sb.append(" (<s>").append(formatMoney(fullPrice)).append("</s> -").append(discount).append("%)");
-                        }
+                if (fullPrice != null && fullPrice > currentPrice) {
+                    long discount = Math.round((1.0 - ((double) currentPrice / fullPrice)) * 100);
+                    if (discount > 0) {
+                        sb.append(" (<s>").append(formatMoney(fullPrice)).append("</s> -").append(discount).append("%)");
                     }
-                    sb.append("\n   ⭐ ").append(isRu ? "Рейтинг: " : "Reyting: ").append(rating);
-                    sb.append("\n   🔗 ").append(u.getProductUrl()).append("\n\n");
-
-                    if (count >= 6) break;
                 }
+                sb.append("\n   ⭐ ").append(isRu ? "Рейтинг: " : "Reyting: ").append(rating);
+                sb.append("\n   🔗 ").append(u.getProductUrl()).append("\n\n");
+
+                if (count >= 6) break;
             }
 
             SendMessage msg = new SendMessage();
@@ -1767,36 +1752,23 @@ public class SellerBotService extends TelegramLongPollingBot {
             InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
             List<List<InlineKeyboardButton>> rows = new ArrayList<>();
             List<InlineKeyboardButton> r = new ArrayList<>();
-
-            if (!localProducts.isEmpty()) {
-                InlineKeyboardButton btn = new InlineKeyboardButton();
-                btn.setText(isRu ? "📱 Открыть в приложении" : "📱 Mini App'da Ko'rish");
-                btn.setWebApp(new WebAppInfo(webappUrl + "/product/" + localProducts.get(0).getId()));
-                r.add(btn);
-            }
-            if (!uzumProducts.isEmpty()) {
-                InlineKeyboardButton uzumBtn = new InlineKeyboardButton();
-                uzumBtn.setText(isRu ? "🛍️ Открыть в Uzum" : "🛍️ Uzum'da Ko'rish");
-                uzumBtn.setUrl(uzumProducts.get(0).getProductUrl());
-                r.add(uzumBtn);
-            }
-
-            if (!r.isEmpty()) {
-                rows.add(r);
-                markup.setKeyboard(rows);
-                msg.setReplyMarkup(markup);
-            }
+            InlineKeyboardButton uzumBtn = new InlineKeyboardButton();
+            uzumBtn.setText(isRu ? "🛍️ Открыть в Uzum" : "🛍️ Uzum'da Ko'rish");
+            uzumBtn.setUrl(uzumProducts.get(0).getProductUrl());
+            r.add(uzumBtn);
+            rows.add(r);
+            markup.setKeyboard(rows);
+            msg.setReplyMarkup(markup);
 
             send(msg);
         } else {
-            boolean isRu = "ru".equals(lang);
             SendMessage msg = new SendMessage();
             msg.setChatId(chatId.toString());
 
             if (text != null && text.trim().length() > 1 && !text.startsWith("/")) {
                 msg.setText(isRu ?
-                        "🔍 По запросу \"" + text + "\" ничего не найдено.\n\n⚠️ Uzum Market API: Ограничен доступ (Anti-Bot Challenge на сервере Render). Попробуйте сменить запрос или открыть приложение." :
-                        "🔍 \"" + text + "\" bo'yicha hech narsa topilmadi.\n\n⚠️ Uzum Market API: Ulanib bo'lmadi (Render serverida Yandex CAPTCHA Anti-Bot chegarasi). Boshqa kalit so'z bilan qidirib ko'ring yoki Mini App'ni oching.");
+                        "🔍 По вашему запросу \"" + text + "\" на Uzum Market ничего не найдено." :
+                        "🔍 Qidiruv bo'yicha Uzum Market'dan hech narsa topilmadi.");
             } else {
                 msg.setText(isRu ?
                         "Нажмите /menu или воспользуйтесь кнопками меню ниже." :

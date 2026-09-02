@@ -81,8 +81,11 @@ public class UzumMarketService {
                     .toUriString();
 
             HttpHeaders headers = new HttpHeaders();
-            headers.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36");
+            headers.set("User-Agent", "Uzum/2.28.0 (Android 13; Mobile)");
+            headers.set("X-Forwarded-For", "213.230.96.15");
+            headers.set("X-Real-IP", "213.230.96.15");
             headers.set("Accept", "application/json");
+            headers.set("Accept-Language", "uz-UZ,uz;q=0.9,ru-RU;q=0.8");
             headers.set("Origin", "https://uzum.uz");
             headers.set("Referer", "https://uzum.uz/");
 
