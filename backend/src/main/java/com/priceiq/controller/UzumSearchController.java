@@ -29,4 +29,14 @@ public class UzumSearchController {
         List<UzumProductDto> results = uzumMarketService.searchProducts(searchQuery);
         return ResponseEntity.ok(results);
     }
+
+    @GetMapping("/trending")
+    @Operation(summary = "Get live trending best deals from Uzum Market")
+    public ResponseEntity<List<UzumProductDto>> getTrendingProducts() {
+        List<UzumProductDto> trending = uzumMarketService.searchProducts("smartfon");
+        if (trending.isEmpty()) {
+            trending = uzumMarketService.searchProducts("televizor");
+        }
+        return ResponseEntity.ok(trending);
+    }
 }
