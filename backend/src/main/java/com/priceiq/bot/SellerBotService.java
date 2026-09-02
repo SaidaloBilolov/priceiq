@@ -4,6 +4,7 @@ import com.priceiq.dto.ProductDto;
 import com.priceiq.dto.UzumProductDto;
 import com.priceiq.entity.*;
 import com.priceiq.repository.*;
+import com.priceiq.service.BotMessageService;
 import com.priceiq.service.ProductService;
 import com.priceiq.service.UserService;
 import com.priceiq.service.UzumMarketService;
@@ -58,6 +59,7 @@ public class SellerBotService extends TelegramLongPollingBot {
     private final UserService userService;
     private final ProductService productService;
     private final UzumMarketService uzumMarketService;
+    private final BotMessageService botMessageService;
 
     // In-memory sessions by Chat ID
     private final Map<Long, SellerSession> sessions = new ConcurrentHashMap<>();
@@ -79,7 +81,8 @@ public class SellerBotService extends TelegramLongPollingBot {
                             SupportTicketRepository supportTicketRepository,
                             UserService userService,
                             ProductService productService,
-                            UzumMarketService uzumMarketService) {
+                            UzumMarketService uzumMarketService,
+                            BotMessageService botMessageService) {
         this.productRepository = productRepository;
         this.offerRepository = offerRepository;
         this.priceHistoryRepository = priceHistoryRepository;
@@ -93,6 +96,7 @@ public class SellerBotService extends TelegramLongPollingBot {
         this.userService = userService;
         this.productService = productService;
         this.uzumMarketService = uzumMarketService;
+        this.botMessageService = botMessageService;
     }
 
     @Override
@@ -588,30 +592,13 @@ public class SellerBotService extends TelegramLongPollingBot {
         SendMessage msg = new SendMessage();
         msg.setChatId(chatId.toString());
         msg.setParseMode(null);
-
-        if ("ru".equals(lang)) {
-            msg.setText("🎧 PRICEIQ Служба поддержки\n\n" +
-                    "✍️ Напишите ваше сообщение, вопрос или жалобу прямо сюда.\n" +
-                    "Вы можете отправить текст, фото, видео или голосовое сообщение.\n\n" +
-                    "Операторы поддержки ответят вам прямо в этом чате!\n\n" +
-                    "📞 Телефон доверия: +998 71 200 00 00\n" +
-                    "👤 Администратор: @priceiq_admin\n\n" +
-                    "👇 Отправьте ваше сообщение:");
-        } else {
-            msg.setText("🎧 PRICEIQ Qo'llab-quvvatlash xizmati\n\n" +
-                    "✍️ Murojaatingiz, savolingiz yoki xabaringizni shu yerga yozib qoldiring.\n" +
-                    "Matn, rasm, video yoki ovozli xabar yuborishingiz mumkin.\n\n" +
-                    "Support operatorlarimiz to'g'ridan-to'g'ri ushbu chat orqali javob berishadi!\n\n" +
-                    "📞 Ishonch telefoni: +998 71 200 00 00\n" +
-                    "👤 Administrator: @priceiq_admin\n\n" +
-                    "👇 Xabaringizni yozib yuboring:");
-        }
+        msg.setText(botMessageService.getMessage("msg.support_prompt", lang));
 
         ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
         keyboardMarkup.setResizeKeyboard(true);
         List<KeyboardRow> rows = new ArrayList<>();
         KeyboardRow r = new KeyboardRow();
-        r.add(new KeyboardButton("ru".equals(lang) ? "🏠 Главное меню / Отмена" : "🏠 Asosiy Menyu / Bekor qilish"));
+        r.add(new KeyboardButton(botMessageService.getMessage("btn.main_menu", lang)));
         rows.add(r);
         keyboardMarkup.setKeyboard(rows);
         msg.setReplyMarkup(keyboardMarkup);
@@ -745,15 +732,13 @@ public class SellerBotService extends TelegramLongPollingBot {
         SendMessage confirmMsg = new SendMessage();
         confirmMsg.setChatId(userChatId.toString());
         confirmMsg.setParseMode(null);
-        confirmMsg.setText("ru".equals(lang) ?
-                "✅ Ваше сообщение передано оператору поддержки!\n\nВы можете продолжать писать прямо сюда. Для выхода нажмите '🏠 Главное меню'." :
-                "✅ Xabaringiz support operatorga yetkazildi!\n\nSuhbatni shu yerda davom ettirishingiz mumkin. Menyuga qaytish uchun '🏠 Asosiy Menyu' tugmasini bosing.");
+        confirmMsg.setText(botMessageService.getMessage("msg.support_confirm", lang));
 
         ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
         keyboardMarkup.setResizeKeyboard(true);
         List<KeyboardRow> kbRows = new ArrayList<>();
         KeyboardRow kbRow = new KeyboardRow();
-        kbRow.add(new KeyboardButton("ru".equals(lang) ? "🏠 Главное меню / Завершить" : "🏠 Asosiy Menyu / Suhbatni yakunlash"));
+        kbRow.add(new KeyboardButton(botMessageService.getMessage("btn.main_menu", lang)));
         kbRows.add(kbRow);
         keyboardMarkup.setKeyboard(kbRows);
         confirmMsg.setReplyMarkup(keyboardMarkup);
@@ -915,19 +900,19 @@ public class SellerBotService extends TelegramLongPollingBot {
         List<KeyboardRow> rows = new ArrayList<>();
 
         KeyboardRow r1 = new KeyboardRow();
-        r1.add(new KeyboardButton("ru".equals(lang) ? "➕ Добавить товар" : "➕ Yangi Mahsulot Qo'shish"));
-        r1.add(new KeyboardButton("ru".equals(lang) ? "📦 Мои товары" : "📦 Mening Mahsulotlarim"));
+        r1.add(new KeyboardButton(botMessageService.getMessage("btn.add_product", lang)));
+        r1.add(new KeyboardButton(botMessageService.getMessage("btn.my_products", lang)));
 
         KeyboardRow r2 = new KeyboardRow();
-        r2.add(new KeyboardButton("ru".equals(lang) ? "✏️ Обновить цену" : "✏️ Narxni Yangilash"));
-        r2.add(new KeyboardButton("ru".equals(lang) ? "🌐 Выбрать язык" : "🌐 Tilni tanlash"));
+        r2.add(new KeyboardButton(botMessageService.getMessage("btn.update_price", lang)));
+        r2.add(new KeyboardButton(botMessageService.getMessage("btn.select_lang", lang)));
 
         KeyboardRow r3 = new KeyboardRow();
-        r3.add(new KeyboardButton("ru".equals(lang) ? "⚙️ Настройки" : "⚙️ Sozlamalar"));
-        r3.add(new KeyboardButton("ru".equals(lang) ? "📞 Поддержка" : "📞 Qo'llab-quvvatlash"));
+        r3.add(new KeyboardButton(botMessageService.getMessage("btn.settings", lang)));
+        r3.add(new KeyboardButton(botMessageService.getMessage("btn.support", lang)));
 
         KeyboardRow r4 = new KeyboardRow();
-        KeyboardButton appBtn = new KeyboardButton("ru".equals(lang) ? "🚀 Открыть PRICEIQ" : "🚀 PRICEIQ Ilovasini Ochish");
+        KeyboardButton appBtn = new KeyboardButton(botMessageService.getMessage("btn.open_app", lang));
         appBtn.setWebApp(new WebAppInfo(webappUrl));
         r4.add(appBtn);
 
@@ -953,19 +938,19 @@ public class SellerBotService extends TelegramLongPollingBot {
         List<KeyboardRow> rows = new ArrayList<>();
 
         KeyboardRow r1 = new KeyboardRow();
-        r1.add(new KeyboardButton("ru".equals(lang) ? "🔍 Поиск товаров" : "🔍 Mahsulot Qidirish"));
-        r1.add(new KeyboardButton("ru".equals(lang) ? "🔥 Лучшие предложения" : "🔥 Eng Yaxshi Takliflar"));
+        r1.add(new KeyboardButton(botMessageService.getMessage("btn.search", lang)));
+        r1.add(new KeyboardButton(botMessageService.getMessage("btn.top_deals", lang)));
 
         KeyboardRow r2 = new KeyboardRow();
-        r2.add(new KeyboardButton("ru".equals(lang) ? "⭐ Избранное" : "⭐ Sevimlilarim"));
-        r2.add(new KeyboardButton("ru".equals(lang) ? "🔔 Уведомления о цене" : "🔔 Narx Alertlari"));
+        r2.add(new KeyboardButton(botMessageService.getMessage("btn.favorites", lang)));
+        r2.add(new KeyboardButton(botMessageService.getMessage("btn.alerts", lang)));
 
         KeyboardRow r3 = new KeyboardRow();
-        r3.add(new KeyboardButton("ru".equals(lang) ? "📞 Поддержка" : "📞 Qo'llab-quvvatlash"));
-        r3.add(new KeyboardButton("ru".equals(lang) ? "⚙️ Настройки" : "⚙️ Sozlamalar"));
+        r3.add(new KeyboardButton(botMessageService.getMessage("btn.support", lang)));
+        r3.add(new KeyboardButton(botMessageService.getMessage("btn.settings", lang)));
 
         KeyboardRow r4 = new KeyboardRow();
-        KeyboardButton appBtn = new KeyboardButton("ru".equals(lang) ? "🚀 Открыть PRICEIQ" : "🚀 PRICEIQ Ilovasini Ochish");
+        KeyboardButton appBtn = new KeyboardButton(botMessageService.getMessage("btn.open_app", lang));
         appBtn.setWebApp(new WebAppInfo(webappUrl));
         r4.add(appBtn);
 
