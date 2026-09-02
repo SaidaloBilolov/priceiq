@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
-  Plus, Edit, Trash2, Search, Upload, Link as LinkIcon, 
-  X, Check, ShoppingBag, RefreshCw 
+  Plus, Edit, Trash2, Search, Upload, Download, Link as LinkIcon, 
+  X, Check, ShoppingBag, RefreshCw, ExternalLink 
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { Product, Category } from '../types';
 import { api } from '../services/api';
 import { ExcelImportCard } from '../components/ExcelImportCard';
@@ -11,11 +12,67 @@ import { ExcelImportCard } from '../components/ExcelImportCard';
 export const AdminPage: React.FC = () => {
   const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const excelFileInputRef = useRef<HTMLInputElement>(null);
 
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
+
+  const handleDownloadTemplate = () => {
+    const templateData = [
+      ['Title', 'Price', 'Category', 'Image URL', 'Rating'],
+      [
+        'Apple iPhone 16 Pro Max 256GB Natural Titanium',
+        '17800000',
+        'Smartfonlar va Gadjetlar',
+        'https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&w=600&q=80',
+        '4.9'
+      ],
+      [
+        'MacBook Air 13 M3 16GB 512GB Midnight',
+        '14800000',
+        'Noutbuklar va Kompyuterlar',
+        'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=600&q=80',
+        '4.8'
+      ]
+    ];
+
+    const worksheet = XLSX.utils.aoa_to_sheet(templateData);
+    worksheet['!cols'] = [
+      { wch: 45 },
+      { wch: 15 },
+      { wch: 25 },
+      { wch: 60 },
+      { wch: 10 }
+    ];
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Mahsulotlar');
+    XLSX.writeFile(workbook, 'Uzum_Market_Import_Shablon.xlsx');
+  };
+
+  const handleQuickExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setIsImporting(true);
+      setFormError('');
+      setSuccessMsg('');
+      try {
+        const res = await api.importProductsFromExcel(file);
+        setSuccessMsg(res.message || `Excel faylidan ${res.count || 0} ta mahsulot muvaffaqiyatli import qilindi!`);
+        fetchProducts();
+        setTimeout(() => setSuccessMsg(''), 5000);
+      } catch (err: any) {
+        setFormError(err.message || 'Import qilishda xatolik yuz berdi');
+      } finally {
+        setIsImporting(false);
+        if (excelFileInputRef.current) {
+          excelFileInputRef.current.value = '';
+        }
+      }
+    }
+  };
 
   // Admin Auth State
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
@@ -269,27 +326,68 @@ export const AdminPage: React.FC = () => {
   return (
     <div className="space-y-6 pb-24 max-w-6xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-gray-800 p-6 rounded-3xl border border-gray-100 dark:border-gray-700/60 shadow-lg">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white dark:bg-gray-800 p-6 rounded-3xl border border-gray-100 dark:border-gray-700/60 shadow-lg">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded-lg text-xs font-black uppercase tracking-wider mb-2">
-            <ShoppingBag className="w-3.5 h-3.5" />
-            <span>PRICEIQ Universal Admin</span>
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded-lg text-xs font-black uppercase tracking-wider">
+              <ShoppingBag className="w-3.5 h-3.5" />
+              <span>PRICEIQ Universal Admin</span>
+            </div>
+            <a
+              href="https://admin-nu-six-45.vercel.app/products"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg text-xs font-bold transition-all border border-gray-200 dark:border-gray-600"
+            >
+              <ExternalLink className="w-3.5 h-3.5 text-blue-500" />
+              <span>Web Admin: admin-nu-six-45.vercel.app/products</span>
+            </a>
           </div>
           <h1 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight">
             Universal Mahsulotlar Boshqaruvi
           </h1>
           <p className="text-xs text-gray-500 mt-1">
-            Barcha turdagi mahsulotlarni (Smartfon, Noutbuk, Kiyim, Maishiy texnika) qo'shish va narxlarni boshqarish
+            Barcha turdagi mahsulotlarni qo'shish, Excel import va narxlarni boshqarish
           </p>
         </div>
 
-        <button
-          onClick={openAddModal}
-          className="px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-blue-500/25 transition-all active:scale-95"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Yangi Mahsulot Qo'shish</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleDownloadTemplate}
+            className="px-4 py-3 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 text-xs font-bold rounded-2xl flex items-center justify-center gap-1.5 border border-emerald-200 dark:border-emerald-800 transition-all active:scale-95 cursor-pointer"
+            title="Excel Shablonini Yuklab Olish"
+          >
+            <Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <span>Excel Shablon</span>
+          </button>
+
+          <input
+            ref={excelFileInputRef}
+            type="file"
+            accept=".xlsx, .xls"
+            onChange={handleQuickExcelUpload}
+            className="hidden"
+          />
+          <button
+            type="button"
+            onClick={() => excelFileInputRef.current?.click()}
+            disabled={isImporting}
+            className="px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-2xl flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/25 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+          >
+            <Upload className="w-4 h-4" />
+            <span>{isImporting ? "Import Qilinmoqda..." : "Excel Import"}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={openAddModal}
+            className="px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-blue-500/25 transition-all active:scale-95 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Yangi Mahsulot Qo'shish</span>
+          </button>
+        </div>
       </div>
 
       {/* Excel Bulk Import Section */}
