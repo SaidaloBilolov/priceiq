@@ -1,10 +1,12 @@
 package com.priceiq.bot;
 
 import com.priceiq.dto.ProductDto;
+import com.priceiq.dto.UzumProductDto;
 import com.priceiq.entity.*;
 import com.priceiq.repository.*;
 import com.priceiq.service.ProductService;
 import com.priceiq.service.UserService;
+import com.priceiq.service.UzumMarketService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
@@ -55,6 +57,7 @@ public class SellerBotService extends TelegramLongPollingBot {
     private final SupportTicketRepository supportTicketRepository;
     private final UserService userService;
     private final ProductService productService;
+    private final UzumMarketService uzumMarketService;
 
     // In-memory sessions by Chat ID
     private final Map<Long, SellerSession> sessions = new ConcurrentHashMap<>();
@@ -75,7 +78,8 @@ public class SellerBotService extends TelegramLongPollingBot {
                             SupportOperatorRepository supportOperatorRepository,
                             SupportTicketRepository supportTicketRepository,
                             UserService userService,
-                            ProductService productService) {
+                            ProductService productService,
+                            UzumMarketService uzumMarketService) {
         this.productRepository = productRepository;
         this.offerRepository = offerRepository;
         this.priceHistoryRepository = priceHistoryRepository;
@@ -88,6 +92,7 @@ public class SellerBotService extends TelegramLongPollingBot {
         this.supportTicketRepository = supportTicketRepository;
         this.userService = userService;
         this.productService = productService;
+        this.uzumMarketService = uzumMarketService;
     }
 
     @Override
@@ -1714,33 +1719,83 @@ public class SellerBotService extends TelegramLongPollingBot {
     }
 
     private void handleDefaultSearchOrHelp(Long chatId, String text, String lang) {
-        List<ProductDto> products = productService.searchProducts(text);
-        if (!products.isEmpty()) {
-            ProductDto top = products.get(0);
-            String title = "ru".equals(lang) ? (top.getTitleRu() != null && !top.getTitleRu().isEmpty() ? top.getTitleRu() : top.getTitleUz()) : top.getTitleUz();
+        List<ProductDto> localProducts = productService.searchProducts(text);
+        List<UzumProductDto> uzumProducts = uzumMarketService.searchProducts(text);
+
+        if (!localProducts.isEmpty() || !uzumProducts.isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            boolean isRu = "ru".equals(lang);
+
+            if (isRu) {
+                sb.append("🔍 Результаты поиска для \"").append(text).append("\":\n\n");
+            } else {
+                sb.append("🔍 \"").append(text).append("\" bo'yicha qidiruv natijalari:\n\n");
+            }
+
+            int count = 0;
+            // 1. Local Database Products
+            for (ProductDto top : localProducts) {
+                count++;
+                String title = isRu ? (top.getTitleRu() != null && !top.getTitleRu().isEmpty() ? top.getTitleRu() : top.getTitleUz()) : top.getTitleUz();
+                sb.append(count).append(". 📱 ").append(title).append("\n")
+                        .append("   💰 ").append(isRu ? "Цена: " : "Narxi: ").append(formatMoney(top.getLowestPriceUzs())).append(isRu ? " сум" : " so'm").append("\n")
+                        .append("   🏪 ").append(isRu ? "Магазин: " : "Do'kon: ").append(top.getStoreName()).append("\n\n");
+                if (count >= 3) break;
+            }
+
+            // 2. Uzum Market Live API Products
+            if (!uzumProducts.isEmpty()) {
+                sb.append(isRu ? "🛍️ Из Uzum Market:\n\n" : "🛍️ Uzum Market'dan:\n\n");
+                for (UzumProductDto u : uzumProducts) {
+                    count++;
+                    String title = u.getTitle();
+                    Long currentPrice = u.getPrice();
+                    Long fullPrice = u.getFullPrice();
+                    Double rating = u.getRating() != null ? u.getRating() : 4.8;
+
+                    sb.append(count).append(". 🛍️ ").append(title).append("\n");
+                    sb.append("   💰 ").append(isRu ? "Цена: " : "Narxi: ").append(formatMoney(currentPrice)).append(isRu ? " сум" : " so'm");
+
+                    if (fullPrice != null && fullPrice > currentPrice) {
+                        long discount = Math.round((1.0 - ((double) currentPrice / fullPrice)) * 100);
+                        if (discount > 0) {
+                            sb.append(" (<s>").append(formatMoney(fullPrice)).append("</s> -").append(discount).append("%)");
+                        }
+                    }
+                    sb.append("\n   ⭐ ").append(isRu ? "Рейтинг: " : "Reyting: ").append(rating);
+                    sb.append("\n   🔗 ").append(u.getProductUrl()).append("\n\n");
+
+                    if (count >= 6) break;
+                }
+            }
+
             SendMessage msg = new SendMessage();
             msg.setChatId(chatId.toString());
             msg.setParseMode(null);
-            msg.setText("ru".equals(lang) ?
-                    "🔍 Результат поиска:\n\n" +
-                            "📱 " + title + "\n" +
-                            "💰 Самая низкая цена: " + formatMoney(top.getLowestPriceUzs()) + " сум\n" +
-                            "🏪 Магазин: " + top.getStoreName() :
-                    "🔍 Qidiruv natijasi:\n\n" +
-                            "📱 " + title + "\n" +
-                            "💰 Eng arzon narx: " + formatMoney(top.getLowestPriceUzs()) + " so'm\n" +
-                            "🏪 Do'kon: " + top.getStoreName());
+            msg.setText(sb.toString());
 
             InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
             List<List<InlineKeyboardButton>> rows = new ArrayList<>();
             List<InlineKeyboardButton> r = new ArrayList<>();
-            InlineKeyboardButton btn = new InlineKeyboardButton();
-            btn.setText("ru".equals(lang) ? "📱 Открыть в приложении" : "📱 Mini App'da Ko'rish");
-            btn.setWebApp(new WebAppInfo(webappUrl + "/product/" + top.getId()));
-            r.add(btn);
-            rows.add(r);
-            markup.setKeyboard(rows);
-            msg.setReplyMarkup(markup);
+
+            if (!localProducts.isEmpty()) {
+                InlineKeyboardButton btn = new InlineKeyboardButton();
+                btn.setText(isRu ? "📱 Открыть в приложении" : "📱 Mini App'da Ko'rish");
+                btn.setWebApp(new WebAppInfo(webappUrl + "/product/" + localProducts.get(0).getId()));
+                r.add(btn);
+            }
+            if (!uzumProducts.isEmpty()) {
+                InlineKeyboardButton uzumBtn = new InlineKeyboardButton();
+                uzumBtn.setText(isRu ? "🛍️ Открыть в Uzum" : "🛍️ Uzum'da Ko'rish");
+                uzumBtn.setUrl(uzumProducts.get(0).getProductUrl());
+                r.add(uzumBtn);
+            }
+
+            if (!r.isEmpty()) {
+                rows.add(r);
+                markup.setKeyboard(rows);
+                msg.setReplyMarkup(markup);
+            }
 
             send(msg);
         } else {
