@@ -143,6 +143,49 @@ export const api = {
   // Products
   async getProducts(params?: { search?: string; categoryId?: number }): Promise<Product[]> {
     const baseUrl = getApiBaseUrl();
+
+    // 1. If search query provided, search live Uzum Market products first
+    if (params?.search && params.search.trim().length > 0) {
+      try {
+        const rootUrl = baseUrl.replace(/\/api$/, '');
+        const res = await fetch(`${rootUrl}/api/v1/products/search?query=${encodeURIComponent(params.search.trim())}`);
+        if (res.ok) {
+          const uzumItems = await res.json();
+          if (Array.isArray(uzumItems) && uzumItems.length > 0) {
+            return uzumItems.map((u: any, idx: number) => ({
+              id: u.productId || (idx + 1000),
+              titleUz: u.title,
+              titleRu: u.title,
+              titleEn: u.title,
+              imageUrl: u.mainImage || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=600&q=80',
+              lowestPriceUzs: u.price || 0,
+              averagePriceUzs: u.fullPrice || u.price || 0,
+              highestPriceUzs: u.fullPrice || u.price || 0,
+              dealScore: 90,
+              dealBadgeUz: `⭐ ${u.rating || 4.8} - UZUM MARKET`,
+              dealBadgeRu: `⭐ ${u.rating || 4.8} - UZUM MARKET`,
+              dealBadgeEn: `⭐ ${u.rating || 4.8} - UZUM MARKET`,
+              category: { id: 1, nameUz: 'Uzum Market', nameRu: 'Uzum Market', nameEn: 'Uzum Market' },
+              storeName: 'Uzum Market',
+              storeOfferUrl: u.productUrl || `https://uzum.uz/product/${u.productId}`,
+              offers: [
+                {
+                  id: u.productId || (idx + 1000),
+                  store: { id: 1, name: 'Uzum Market' },
+                  priceUzs: u.price || 0,
+                  isAvailable: true,
+                  offerUrl: u.productUrl || `https://uzum.uz/product/${u.productId}`
+                }
+              ]
+            }));
+          }
+        }
+      } catch (e) {
+        console.warn('Live Uzum search fetch error', e);
+      }
+    }
+
+    // 2. Standard backend catalog query
     const query = new URLSearchParams();
     if (params?.search) query.set('search', params.search);
     if (params?.categoryId) query.set('categoryId', params.categoryId.toString());
@@ -151,7 +194,7 @@ export const api = {
       const res = await fetch(`${baseUrl}/products?${query.toString()}`);
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data)) {
+        if (Array.isArray(data) && data.length > 0) {
           return data;
         }
       }

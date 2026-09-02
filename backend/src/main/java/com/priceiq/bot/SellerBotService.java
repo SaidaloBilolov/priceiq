@@ -8,6 +8,8 @@ import com.priceiq.service.BotMessageService;
 import com.priceiq.service.ProductService;
 import com.priceiq.service.UserService;
 import com.priceiq.service.UzumMarketService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
@@ -1703,7 +1705,10 @@ public class SellerBotService extends TelegramLongPollingBot {
         send(msg);
     }
 
+    private static final Logger log = LoggerFactory.getLogger(SellerBotService.class);
+
     private void handleDefaultSearchOrHelp(Long chatId, String text, String lang) {
+        log.info("Processing search query via bot: {}", text);
         List<ProductDto> localProducts = productService.searchProducts(text);
         List<UzumProductDto> uzumProducts = uzumMarketService.searchProducts(text);
 
