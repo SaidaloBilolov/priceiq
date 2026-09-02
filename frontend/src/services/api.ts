@@ -292,5 +292,24 @@ export const api = {
     try {
       fetch(`${baseUrl}/alerts/${id}`, { method: 'DELETE' }).catch(() => {});
     } catch (e) {}
+  },
+
+  async importProductsFromExcel(file: File): Promise<{ message: string; count: number; success: boolean }> {
+    const baseUrl = getApiBaseUrl();
+    const rootUrl = baseUrl.replace(/\/api$/, '');
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const res = await fetch(`${rootUrl}/api/v1/products/import`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const errJson = await res.json().catch(() => ({}));
+      throw new Error(errJson.error || 'Import qilishda xatolik yuz berdi');
+    }
+
+    return res.json();
   }
 };

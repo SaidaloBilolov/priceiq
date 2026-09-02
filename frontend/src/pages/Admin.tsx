@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { Product, Category } from '../types';
 import { api } from '../services/api';
+import { ExcelImportCard } from '../components/ExcelImportCard';
 
 export const AdminPage: React.FC = () => {
   const { t } = useTranslation();
@@ -290,6 +291,9 @@ export const AdminPage: React.FC = () => {
           <span>Yangi Mahsulot Qo'shish</span>
         </button>
       </div>
+
+      {/* Excel Bulk Import Section */}
+      <ExcelImportCard onImportSuccess={fetchProducts} />
 
       {/* Success Notification */}
       {successMsg && (
