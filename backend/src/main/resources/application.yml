@@ -39,3 +39,9 @@ springdoc:
     path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
+
+yandex:
+  market:
+    api-key: ${YANDEX_MARKET_API_KEY:ACMA:ctRaLTczXjBWbJN1bXIC1H4073XeLPpOUF5hwPgM:77f6a29e}
+    api-url: ${YANDEX_MARKET_API_URL:https://api.partner.market.yandex.ru}
+
