@@ -29,61 +29,7 @@ const DEFAULT_CATEGORIES: Category[] = [
   { id: 12, nameUz: 'Boshqa Mahsulotlar', nameRu: 'Другие товары', nameEn: 'Other Products' }
 ];
 
-const DEFAULT_PRODUCTS: Product[] = [
-  {
-    id: 1,
-    titleUz: 'Apple iPhone 16 Pro Max 256GB Tabiiy Titan',
-    titleRu: 'Apple iPhone 16 Pro Max 256GB Натуральный Титан',
-    titleEn: 'Apple iPhone 16 Pro Max 256GB Natural Titanium',
-    brand: 'Apple',
-    storage: '256GB',
-    ram: '8GB',
-    color: 'Tabiiy Titan',
-    descriptionUz: 'A18 Pro protsessor, 48MP asosiy kamera va titan korpusli eng so\'nggi flagman smartfon',
-    imageUrl: 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&w=600&q=80',
-    lowestPriceUzs: 17800000,
-    averagePriceUzs: 18400000,
-    highestPriceUzs: 19200000,
-    dealScore: 94,
-    dealBadgeUz: '94/100 - JUDA YAXSHI TAKLIF',
-    dealBadgeRu: '94/100 - ОТЛИЧНОЕ ПРЕДЛОЖЕНИЕ',
-    dealBadgeEn: '94/100 - GREAT DEAL',
-    category: { id: 1, nameUz: 'Smartfonlar', nameRu: 'Смартфоны', nameEn: 'Smartphones' },
-    storeName: 'Uzum Market',
-    storeOfferUrl: 'https://uzum.uz',
-    offers: [
-      { id: 1, store: { id: 1, name: 'Uzum Market' }, priceUzs: 17800000, isAvailable: true, offerUrl: 'https://uzum.uz' },
-      { id: 2, store: { id: 2, name: 'Texnomart' }, priceUzs: 18200000, isAvailable: true, offerUrl: 'https://texnomart.uz' },
-      { id: 3, store: { id: 3, name: 'Olcha.uz' }, priceUzs: 18500000, isAvailable: true, offerUrl: 'https://olcha.uz' }
-    ]
-  },
-  {
-    id: 2,
-    titleUz: 'Samsung Galaxy S24 Ultra 512GB Titanium Gray',
-    titleRu: 'Samsung Galaxy S24 Ultra 512GB Titanium Gray',
-    titleEn: 'Samsung Galaxy S24 Ultra 512GB Titanium Gray',
-    brand: 'Samsung',
-    storage: '512GB',
-    ram: '12GB',
-    color: 'Titanium Gray',
-    descriptionUz: 'Galaxy AI sun\'iy intellekt, 200MP kamera va o\'rnatilgan S-Pen stilus',
-    imageUrl: 'https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?auto=format&fit=crop&w=600&q=80',
-    lowestPriceUzs: 15400000,
-    averagePriceUzs: 16100000,
-    highestPriceUzs: 16800000,
-    dealScore: 92,
-    dealBadgeUz: '92/100 - YAXSHI NARX',
-    dealBadgeRu: '92/100 - ХОРОШАЯ ЦЕНА',
-    dealBadgeEn: '92/100 - GOOD DEAL',
-    category: { id: 1, nameUz: 'Smartfonlar', nameRu: 'Смартфоны', nameEn: 'Smartphones' },
-    storeName: 'Olcha.uz',
-    storeOfferUrl: 'https://olcha.uz',
-    offers: [
-      { id: 4, store: { id: 3, name: 'Olcha.uz' }, priceUzs: 15400000, isAvailable: true, offerUrl: 'https://olcha.uz' },
-      { id: 5, store: { id: 1, name: 'Uzum Market' }, priceUzs: 15900000, isAvailable: true, offerUrl: 'https://uzum.uz' }
-    ]
-  }
-];
+const DEFAULT_PRODUCTS: Product[] = [];
 
 export const api = {
   // User Profile & Phone Number Management

@@ -72,7 +72,7 @@ public class UzumMarketService {
             return new ArrayList<>();
         }
 
-        // --- Approach 1: REST API ---
+        // --- Approach 1: Uzum Mobile Direct Endpoint ---
         try {
             String url = UriComponentsBuilder.fromHttpUrl(UZUM_REST_URL)
                     .queryParam("query", query.trim())
@@ -119,53 +119,77 @@ public class UzumMarketService {
             log.error("UZUM API REST ERROR: ", e);
         }
 
-        // --- Approach 2: GraphQL Endpoint Fallback ---
+        // --- Approach 2: Uzum Web Search Endpoint ---
         try {
+            String webUrl = "https://uzum.uz/api/v2/product/search?query=" + java.net.URLEncoder.encode(query.trim(), "UTF-8") + "&size=10";
+
             HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36");
-            headers.set("Origin", "https://uzum.uz");
+            headers.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36");
+            headers.set("Accept", "application/json");
             headers.set("Referer", "https://uzum.uz/");
 
-            Map<String, Object> body = new HashMap<>();
-            body.put("query", "query searchProducts($query: String!) { search(query: $query) { products { id title sellPrice fullPrice photoKey rating } } }");
-            Map<String, String> variables = new HashMap<>();
-            variables.put("query", query.trim());
-            body.put("variables", variables);
+            HttpEntity<Void> requestEntity = new HttpEntity<>(headers);
+            ResponseEntity<String> webResponse = restTemplate.exchange(webUrl, HttpMethod.GET, requestEntity, String.class);
 
-            HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(body, headers);
-            ResponseEntity<String> gqlResponse = restTemplate.exchange(UZUM_GRAPHQL_URL, HttpMethod.POST, requestEntity, String.class);
+            System.out.println("UZUM WEB STATUS CODE: " + webResponse.getStatusCode());
+            System.out.println("UZUM WEB RAW BODY: " + webResponse.getBody());
 
-            System.out.println("UZUM GRAPHQL STATUS CODE: " + gqlResponse.getStatusCode());
-            System.out.println("UZUM GRAPHQL RAW BODY: " + gqlResponse.getBody());
-
-            log.info("UZUM GRAPHQL STATUS CODE: {}", gqlResponse.getStatusCode());
-            log.info("UZUM GRAPHQL RAW BODY: {}", gqlResponse.getBody());
-
-            if (gqlResponse.getStatusCode().is2xxSuccessful() && gqlResponse.getBody() != null && !gqlResponse.getBody().contains("<html")) {
+            if (webResponse.getStatusCode().is2xxSuccessful() && webResponse.getBody() != null && !webResponse.getBody().contains("<html")) {
                 com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-                com.fasterxml.jackson.databind.JsonNode rootNode = mapper.readTree(gqlResponse.getBody());
-                com.fasterxml.jackson.databind.JsonNode productsNode = rootNode.path("data").path("search").path("products");
+                UzumSearchResponseDto responseDto = mapper.readValue(webResponse.getBody(), UzumSearchResponseDto.class);
 
-                if (productsNode.isArray() && productsNode.size() > 0) {
-                    List<UzumProductDto> dtos = new ArrayList<>();
-                    for (com.fasterxml.jackson.databind.JsonNode p : productsNode) {
-                        Long pId = p.path("id").asLong();
-                        String title = p.path("title").asText();
-                        Long sellPrice = p.path("sellPrice").asLong();
-                        Long fullPrice = p.path("fullPrice").asLong(sellPrice);
-                        Double rating = p.path("rating").asDouble(4.8);
-                        String photoKey = p.path("photoKey").asText(null);
-                        String imgUrl = (photoKey != null && !photoKey.isEmpty()) ? "https://images.uzum.uz/" + photoKey + "/original.jpg" : null;
-
-                        dtos.add(new UzumProductDto(pId, title, sellPrice, fullPrice, rating, imgUrl));
+                if (responseDto != null && responseDto.getPayload() != null) {
+                    List<UzumSearchResponseDto.ProductItem> items = responseDto.getPayload().getItemList();
+                    if (items != null && !items.isEmpty()) {
+                        List<UzumProductDto> dtos = new ArrayList<>();
+                        for (UzumSearchResponseDto.ProductItem item : items) {
+                            dtos.add(item.toUzumProductDto());
+                        }
+                        return dtos;
                     }
-                    return dtos;
                 }
             }
         } catch (Exception e) {
-            System.err.println("UZUM API GRAPHQL ERROR: " + e.getMessage());
-            log.error("UZUM API GRAPHQL ERROR: ", e);
+            System.err.println("UZUM WEB API ERROR: " + e.getMessage());
+            log.error("UZUM WEB API ERROR: ", e);
+        }
+
+        // --- Approach 3: Public CORS Proxy / Scraper Gateway ---
+        try {
+            String targetUzumUrl = "https://api.uzum.uz/api/v2/product/search?query=" + java.net.URLEncoder.encode(query.trim(), "UTF-8") + "&size=10";
+            String proxyUrl = "https://api.allorigins.win/raw?url=" + java.net.URLEncoder.encode(targetUzumUrl, "UTF-8");
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36");
+            headers.set("Accept", "application/json");
+
+            HttpEntity<Void> requestEntity = new HttpEntity<>(headers);
+            ResponseEntity<String> proxyResponse = restTemplate.exchange(proxyUrl, HttpMethod.GET, requestEntity, String.class);
+
+            System.out.println("UZUM PROXY STATUS CODE: " + proxyResponse.getStatusCode());
+            System.out.println("UZUM PROXY RAW BODY: " + proxyResponse.getBody());
+
+            log.info("UZUM PROXY STATUS CODE: {}", proxyResponse.getStatusCode());
+            log.info("UZUM PROXY RAW BODY: {}", proxyResponse.getBody());
+
+            if (proxyResponse.getStatusCode().is2xxSuccessful() && proxyResponse.getBody() != null && !proxyResponse.getBody().contains("<html")) {
+                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                UzumSearchResponseDto responseDto = mapper.readValue(proxyResponse.getBody(), UzumSearchResponseDto.class);
+
+                if (responseDto != null && responseDto.getPayload() != null) {
+                    List<UzumSearchResponseDto.ProductItem> items = responseDto.getPayload().getItemList();
+                    if (items != null && !items.isEmpty()) {
+                        List<UzumProductDto> dtos = new ArrayList<>();
+                        for (UzumSearchResponseDto.ProductItem item : items) {
+                            dtos.add(item.toUzumProductDto());
+                        }
+                        return dtos;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("UZUM API PROXY ERROR: " + e.getMessage());
+            log.error("UZUM API PROXY ERROR: ", e);
         }
 
         return new ArrayList<>();
